@@ -45,8 +45,7 @@ public class Cliente extends JFrame {
     private void conectarAServidor() {
         try {
             // ip publica:puerto
-            //socket = new Socket("147.185.221.28", 37296); // <- actualiza si cambia el túnel
-            socket = new Socket("127.0.0.1", 1234);
+            socket = new Socket("147.185.221.28", 37296); // <- actualizar si cambia el tunel (paso)
             salida = new PrintWriter(socket.getOutputStream(), true);
             entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
