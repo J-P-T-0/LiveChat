@@ -137,12 +137,12 @@ modules.xml
 .idea/**/azureSettings.xml
 
 # Default ignored files
-.idea/shelf/
-.idea/workspace.xml
+/shelf/
+/workspace.xml
 # Editor-based HTTP Client requests
-.idea/httpRequests/
+/httpRequests/
 # Environment-dependent path to Maven home directory
-.idea/mavenHomeManager.xml
+/mavenHomeManager.xml
 # Datasource local storage ignored files
-.idea/dataSources/
-.idea/dataSources.local.xml
+/dataSources/
+/dataSources.local.xml
