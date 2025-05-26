@@ -101,15 +101,11 @@ public class ClientHandler extends Thread {
                         case Login loginRequest->login(loginRequest);
 
                         case Registrarse registroRequest ->registrar(registroRequest);
-                        /*
-                        case "GET_CONVERSACIONES":
-                            cargarConversaciones();
-                            break;
 
-                        case "GET_MENSAJES":
-                            //getMensajes(comando.get("conversacionId").asInt());
-                            break;
+                        case GetConversaciones _ -> cargarConversaciones();
 
+                        case GetMensajes mensajesRequest -> getMensajes(mensajesRequest);
+/*
                         case "ENVIAR_MENSAJE":
                             //enviarMensaje(
                             //        comando.get("conversacionId").asInt(),
@@ -204,7 +200,7 @@ public class ClientHandler extends Thread {
     // metodo que carga las conversaciones del usuario
 
 
-    private void getMensajes(int conversacionId) throws SQLException {
+    private void getMensajes(GetMensajes request) throws SQLException {
         String sql = """
                 SELECT u.nombre, m.mensaje, m.fecha_envio 
                 FROM mensajes m
@@ -213,7 +209,7 @@ public class ClientHandler extends Thread {
                 ORDER BY m.fecha_envio
                 """;
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, conversacionId);
+            stmt.setInt(1, request.getConversacionId());
             ResultSet rs = stmt.executeQuery();
 
             ArrayNode mensajesArray = objectMapper.createArrayNode();
