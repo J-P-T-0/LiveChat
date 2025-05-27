@@ -3,13 +3,16 @@ package org.example;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.SQLException;
 
 public class ChatServer {
     private int puerto;
     private ServerSocket servidor;
-
-    public ChatServer(int puerto) {
+    //pool de conexiones
+    protected poolConexiones poolConn;
+    public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;
+        this.poolConn = new poolConexiones();
     }
 
     public void start() {
@@ -21,7 +24,7 @@ public class ChatServer {
                 Socket socketCliente = servidor.accept();
                 System.out.println("Cliente conectado");
 
-                ClientHandler manejador = new ClientHandler(socketCliente);
+                ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
                 manejador.start(); // Hilo por cliente
             }
         } catch (IOException e) {
@@ -29,7 +32,7 @@ public class ChatServer {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SQLException {
         ChatServer servidor = new ChatServer(1234);//puerto al que escucha el server
         servidor.start();
     }
