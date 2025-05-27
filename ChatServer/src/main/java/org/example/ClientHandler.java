@@ -24,8 +24,6 @@ public class ClientHandler extends Thread {
     private Connection conn;
     // ID del usuario autenticado, null si no está autenticado
     private Integer usuarioAutenticadoId = null;
-    // ID de la primera conversación en la que aparece el usuario
-    private Integer primeraConversacion = null;
 
     // Al inicio de la clase
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -171,21 +169,15 @@ public class ClientHandler extends Thread {
     }
 
     // Ejemplo de cargarConversaciones modificado
-    private void cargarConversaciones() {
+    private void cargarConversaciones() throws SQLException {
         String sql = """
                 SELECT c.id, c.nombre, c.isGrupo 
                 FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
-                LIMIT ?,50
                 """;
-        try{
-            //Recuperar la primera conversación
-            this.primeraConversacion = primeraConversacionUsuario(this.usuarioAutenticadoId);
-            //Ejecutar la query
-            PreparedStatement stmt = conn.prepareStatement(sql);
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, usuarioAutenticadoId);
-            stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayNode conversaciones = objectMapper.createArrayNode();//array que contiene multiples objetos en este caso conversaciones
@@ -203,12 +195,10 @@ public class ClientHandler extends Thread {
             //Json es un arbol de objetos 0.0
             datos.set("conversaciones", conversaciones);
             enviarRespuesta("success", "Conversaciones recuperadas con éxito", datos);
-        }catch (SQLException e) {
-            enviarRespuesta("error", "Error al recuperar conversaciones: " + e.getMessage());
         }
     }
-
     // metodo que carga las conversaciones del usuario
+
 
     private void getMensajes(GetMensajes request) throws SQLException {
         String sql = """
@@ -251,20 +241,6 @@ public class ClientHandler extends Thread {
                 enviarRespuesta("error", "Error al enviar mensaje");
             }
         }
-    }
-
-    /*
-    *
-    * Sección de métodos adicionales
-    *
-    * */
-
-    private int primeraConversacionUsuario(int usuarioId) throws SQLException {
-        String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, usuarioId);
-        ResultSet rs = stmt.executeQuery();
-        return rs.getInt("id");
     }
 
     /*
