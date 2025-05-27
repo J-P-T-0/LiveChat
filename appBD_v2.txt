@@ -1,0 +1,94 @@
+-- Adminer 5.2.1 MySQL 8.0.42 dump
+
+SET NAMES utf8;
+SET time_zone = '+00:00';
+SET foreign_key_checks = 0;
+SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
+
+SET NAMES utf8mb4;
+
+DROP DATABASE IF EXISTS `appdb`;
+CREATE DATABASE `appdb` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+USE `appdb`;
+
+DROP TABLE IF EXISTS `Ejemplo`;
+CREATE TABLE `Ejemplo` (
+  `ID` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(20) COLLATE utf8mb4_general_ci NOT NULL,
+  `precio` float NOT NULL,
+  PRIMARY KEY (`ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `Ejemplo` (`ID`, `nombre`, `precio`) VALUES
+(1,	'CallateJulieta',	0),
+(2,	'CallateJulieta',	0),
+(3,	'CallateJulieta',	0),
+(4,	'Callate Julieta',	0);
+
+
+DROP TABLE IF EXISTS `conversaciones`;
+CREATE TABLE `conversaciones` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `isGrupo` tinyint(1) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `conversaciones` (`id`, `nombre`, `isGrupo`) VALUES
+(1,	'Conversación Julieta a Callate',	0);
+
+
+DROP TABLE IF EXISTS `usuarios`;
+CREATE TABLE `usuarios` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `telefono` varchar(15) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `contrasenia` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `usuarios` (`id`, `nombre`, `telefono`, `contrasenia`) VALUES
+(1,	'Julieta',	'1234567890',	'julieta123'),
+(2,	'Callate',	'1234567890',	'callate123');
+
+DROP TABLE IF EXISTS `mensajes`;
+CREATE TABLE `mensajes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `conversacion_id` int DEFAULT NULL,
+  `remitente_id` int DEFAULT NULL,
+  `mensaje` text COLLATE utf8mb4_general_ci,
+  `fecha_envio` datetime DEFAULT NULL,
+  `fecha_lectura` datetime DEFAULT NULL,
+  `isEntregado` tinyint(1) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `conversacion_id` (`conversacion_id`),
+  KEY `remitente_id` (`remitente_id`),
+  CONSTRAINT `mensajes_ibfk_1` FOREIGN KEY (`conversacion_id`) REFERENCES `conversaciones` (`id`),
+  CONSTRAINT `mensajes_ibfk_2` FOREIGN KEY (`remitente_id`) REFERENCES `usuarios` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `mensajes` (`id`, `conversacion_id`, `remitente_id`, `mensaje`, `fecha_envio`, `fecha_lectura`, `isEntregado`) VALUES
+(1,	1,	1,	'¡Hola Callate! soy julieta',	'2025-04-29 22:53:39',	NULL,	NULL),
+(2,	1,	1,	'Callate!',	'2025-04-29 22:58:50',	NULL,	NULL),
+(3,	1,	2,	'Callate tú!',	'2025-04-29 23:01:14',	NULL,	NULL),
+(4,	1,	1,	'Hola',	'2025-04-30 16:15:57',	NULL,	NULL),
+(24,	1,	1,	'hola mundo',	'2025-05-22 13:26:07',	NULL,	NULL),
+(25,	1,	2,	'0',	'2025-05-22 13:26:20',	NULL,	NULL),
+(26,	1,	1,	'sepa',	'2025-05-24 15:00:36',	NULL,	NULL),
+(27,	1,	2,	'dddd',	'2025-05-24 22:30:38',	NULL,	NULL);
+
+DROP TABLE IF EXISTS `conversacion_usuario`;
+CREATE TABLE `conversacion_usuario` (
+  `usuario_id` int DEFAULT NULL,
+  `conversacion_id` int DEFAULT NULL,
+  KEY `usuario_id` (`usuario_id`),
+  KEY `conversacion_id` (`conversacion_id`),
+  CONSTRAINT `conversacion_usuario_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`),
+  CONSTRAINT `conversacion_usuario_ibfk_2` FOREIGN KEY (`conversacion_id`) REFERENCES `conversaciones` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `conversacion_usuario` (`usuario_id`, `conversacion_id`) VALUES
+(1,	1),
+(2,	1);
+
+-- 2025-05-25 21:15:40 UTC
