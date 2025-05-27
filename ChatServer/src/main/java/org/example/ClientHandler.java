@@ -7,6 +7,7 @@ import Respuestas.*;
 import java.io.*;
 import java.net.Socket;
 import java.sql.*;
+import java.util.ArrayList;
 
 //importar librerias para JSON
 import Respuestas.Respuesta;
@@ -158,6 +159,7 @@ public class ClientHandler extends Thread {
                 throw new Exception("El número ya está registrado, pedir número nuevamente.");
             }
             usuarioRegistrado(request.getTelefono(), request.getNombre(), request.getContrasena());
+            enviarRespuesta(new Aviso("éxito","Se registró el usuario"));
         } catch (Exception e) {
             enviarRespuesta(new Aviso("error", "Error al registrar usuario: " + e.getMessage()));
         }
@@ -181,28 +183,18 @@ public class ClientHandler extends Thread {
             stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
-            ArrayNode conversaciones = objectMapper.createArrayNode();//array que contiene multiples objetos en este caso conversaciones
+            ArrayList<DatosConversacion> datosConv = new ArrayList<>();
             while (rs.next()) {
                 //conv es como crear un objeto de tipo conversacion
-                ObjectNode conv = objectMapper.createObjectNode();
-                conv.put("id", rs.getInt("id"));
-                conv.put("nombre", rs.getString("nombre"));
-                conv.put("tipo", rs.getBoolean("isGrupo") ? "Grupo" : "Individual");
-                conversaciones.add(conv);
+                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo")));
             }
-
-            ObjectNode datos = objectMapper.createObjectNode();//Se vuelve a envolver en un objeto de tipo object node para enviarlo
-            //se accede de manera similar a un arraylist  rootNode.get("conversaciones").get(0);
-            //Json es un arbol de objetos 0.0
-            datos.set("conversaciones", conversaciones);
-            //enviarRespuesta("success", "Conversaciones recuperadas con éxito", datos);
+            enviarRespuesta(new ReturnConversaciones(datosConv));
         }catch (SQLException e) {
             enviarRespuesta(new Aviso("error", "Error al recuperar conversaciones: " + e.getMessage()));
         }
     }
 
     // metodo que carga las conversaciones del usuario
-
     private void getMensajes(GetMensajes request) throws SQLException {
         String sql = """
                 SELECT u.nombre, m.mensaje, m.fecha_envio 
@@ -210,9 +202,11 @@ public class ClientHandler extends Thread {
                 JOIN usuarios u ON m.remitente_id = u.id
                 WHERE m.conversacion_id = ? 
                 ORDER BY m.fecha_envio
+                LIMIT ?,50
                 """;
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, request.getConversacionId());
+            stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayNode mensajesArray = objectMapper.createArrayNode();

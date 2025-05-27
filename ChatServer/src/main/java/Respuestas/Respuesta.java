@@ -15,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonSubTypes({
         @JsonSubTypes.Type(value = Aviso.class, name = "AVISO"),
         @JsonSubTypes.Type(value = LoginAuth.class, name = "LOGIN_AUTH"),
+        @JsonSubTypes.Type(value = ReturnConversaciones.class, name = "RETURN_CONVERSACIONES"),
+        @JsonSubTypes.Type(value = ReturnMensajes.class, name = "RETURN_MENSAJES"),
 })
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
