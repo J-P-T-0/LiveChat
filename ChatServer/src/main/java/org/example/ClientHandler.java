@@ -2,12 +2,15 @@ package org.example;
 
 //Importar los requests
 import Requests.*;
+import Respuestas.*;
 
 import java.io.*;
 import java.net.Socket;
 import java.sql.*;
 
 //importar librerias para JSON
+import Respuestas.Respuesta;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -24,6 +27,8 @@ public class ClientHandler extends Thread {
     private Connection conn;
     // ID del usuario autenticado, null si no está autenticado
     private Integer usuarioAutenticadoId = null;
+    // ID de la primera conversación en la que aparece el usuario
+    private Integer primeraConversacion = null;
 
     // Al inicio de la clase
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -47,13 +52,7 @@ public class ClientHandler extends Thread {
             }
 
             // Confirmar conexion
-            try {
-                ObjectNode datos = objectMapper.createObjectNode();
-                datos.put("estado", "success");
-                enviarRespuesta("exito", "Conexion al servidor establecida", datos);
-            } catch (Exception e) {
-                System.out.println("Object node error: " + e.getMessage());
-            }
+            enviarRespuesta(new Aviso("éxito","conexión establecida con el servidor"));
 
 
             try {
@@ -93,7 +92,7 @@ public class ClientHandler extends Thread {
                     // Verificación de autenticación
                     if (!(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
                             && usuarioAutenticadoId == null) {
-                        enviarRespuesta("error", "Debes autenticarte primero");
+                        enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
                         continue;
                     }
 
@@ -123,13 +122,11 @@ public class ClientHandler extends Thread {
                             break;
                         case "OBTENER_ESTADO_MENSAJE":
                             break;*/
-                        default-> enviarRespuesta("error", "comando invalido");
+                        default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
-                    ObjectNode error = objectMapper.createObjectNode();
-                    error.put("estado", "error");
-                    error.put("descripcion", "Error al procesar comando: " + e.getMessage());
-                    salida.println(error.toString());
+                    String jsonError = objectMapper.writeValueAsString(new Aviso("error", "Hubo este problema con JSON: "+e.getMessage()));
+                    salida.println(jsonError);
                 }
             }
 
@@ -142,42 +139,46 @@ public class ClientHandler extends Thread {
     }
 
     // metoodo login con json
-    private void login(Login request) {
+    private void login(Login request) throws JsonProcessingException {
         try {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
-                ObjectNode datos = objectMapper.createObjectNode();
-                datos.put("usuarioID", usuarioAutenticadoId).asText();
-                enviarRespuesta("exito", "login realizado correctamente", datos);
+                enviarRespuesta(new LoginAuth(request.getTelefono(), request.getPassword()));
             } else {
-                enviarRespuesta("error", "nombre o contrasenia incorrectos");
+                enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
         } catch (Exception e) {
-            enviarRespuesta("error", "Error en login: " + e.getMessage());
+            enviarRespuesta(new Aviso("error", "Error en login: " + e.getMessage()));
         }
     }
 
     // metodo para registrar un nuevo usuario con JSON
-    private void registrar(Registrarse request) {
+    private void registrar(Registrarse request) throws JsonProcessingException {
         try {
             if(existeTelefono(request.getTelefono())){
                 throw new Exception("El número ya está registrado, pedir número nuevamente.");
             }
             usuarioRegistrado(request.getTelefono(), request.getNombre(), request.getContrasena());
         } catch (Exception e) {
-            enviarRespuesta("error", "Error al registrar usuario: " + e.getMessage());
+            enviarRespuesta(new Aviso("error", "Error al registrar usuario: " + e.getMessage()));
         }
     }
 
     // Ejemplo de cargarConversaciones modificado
-    private void cargarConversaciones() throws SQLException {
+    private void cargarConversaciones() throws JsonProcessingException {
         String sql = """
                 SELECT c.id, c.nombre, c.isGrupo 
                 FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
+                LIMIT ?,50
                 """;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try{
+            //Recuperar la primera conversación
+            this.primeraConversacion = primeraConversacionUsuario(this.usuarioAutenticadoId);
+            //Ejecutar la query
+            PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioAutenticadoId);
+            stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayNode conversaciones = objectMapper.createArrayNode();//array que contiene multiples objetos en este caso conversaciones
@@ -194,11 +195,13 @@ public class ClientHandler extends Thread {
             //se accede de manera similar a un arraylist  rootNode.get("conversaciones").get(0);
             //Json es un arbol de objetos 0.0
             datos.set("conversaciones", conversaciones);
-            enviarRespuesta("success", "Conversaciones recuperadas con éxito", datos);
+            //enviarRespuesta("success", "Conversaciones recuperadas con éxito", datos);
+        }catch (SQLException e) {
+            enviarRespuesta(new Aviso("error", "Error al recuperar conversaciones: " + e.getMessage()));
         }
     }
-    // metodo que carga las conversaciones del usuario
 
+    // metodo que carga las conversaciones del usuario
 
     private void getMensajes(GetMensajes request) throws SQLException {
         String sql = """
@@ -223,7 +226,7 @@ public class ClientHandler extends Thread {
 
             ObjectNode datos = objectMapper.createObjectNode();
             datos.set("mensajes", mensajesArray);
-            enviarRespuesta("success", "Mensajes recuperados con éxito", datos);
+            //enviarRespuesta("success", "Mensajes recuperados con éxito", datos);
         }
     }
 
@@ -236,11 +239,25 @@ public class ClientHandler extends Thread {
             int filas = stmt.executeUpdate();
 
             if (filas > 0) {
-                enviarRespuesta("success", "Mensaje enviado exitosamente");
+                //enviarRespuesta("success", "Mensaje enviado exitosamente");
             } else {
-                enviarRespuesta("error", "Error al enviar mensaje");
+                //enviarRespuesta("error", "Error al enviar mensaje");
             }
         }
+    }
+
+    /*
+    *
+    * Sección de métodos adicionales
+    *
+    * */
+
+    private int primeraConversacionUsuario(int usuarioId) throws SQLException {
+        String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setInt(1, usuarioId);
+        ResultSet rs = stmt.executeQuery();
+        return rs.getInt("id");
     }
 
     /*
@@ -284,24 +301,11 @@ public class ClientHandler extends Thread {
         return false;
     }
 
-
-
-
-    // metodo para enviar respuestas simples como error o exito con JSON
-    private void enviarRespuesta(String estado, String descripcion) {
-        ObjectNode respuesta = objectMapper.createObjectNode();
-        respuesta.put("estado", estado);
-        respuesta.put("descripcion", descripcion);
-        salida.println(respuesta.toString());
-    }
-
     // metodo para enviar respuestas con campos personalizados como id_conversacion o fehca_envio con JSON
-    private void enviarRespuesta(String estado, String descripcion, ObjectNode datosAdicionales) {
-        ObjectNode respuesta = objectMapper.createObjectNode();
-        respuesta.put("estado", estado);
-        respuesta.put("descripcion", descripcion);
-        respuesta.setAll(datosAdicionales); // Añade todos los datos adicionales
-        salida.println(respuesta.toString());
+    // métod0 fue modificado para que mande todos los tipos de mensajes
+    private void enviarRespuesta(Respuesta respuesta) throws JsonProcessingException {
+        String jsonRespuesta = objectMapper.writeValueAsString(respuesta);
+        salida.println(jsonRespuesta);
     }
 
 // metodo para marcar mensaje como leído
@@ -319,7 +323,7 @@ private void marcarMensajeComoLeido(int mensajeId) throws SQLException {
         checkStmt.setInt(2, usuarioAutenticadoId);
         
         if (!checkStmt.executeQuery().next()) {
-            enviarRespuesta("error", "mensaje no pertenece a ninguna de tus conversaciones");
+            //enviarRespuesta("error", "mensaje no pertenece a ninguna de tus conversaciones");
             return;
         }
         
@@ -330,9 +334,9 @@ private void marcarMensajeComoLeido(int mensajeId) throws SQLException {
             int filasActualizadas = updateStmt.executeUpdate();
             
             if (filasActualizadas > 0) {
-                enviarRespuesta("success", "Mensaje marcado como leído");
+                //enviarRespuesta("success", "Mensaje marcado como leído");
             } else {
-                enviarRespuesta("error", "No se pudo marcar el mensaje como leído");
+//                enviarRespuesta("error", "No se pudo marcar el mensaje como leído");
             }
         }
     }
@@ -371,9 +375,9 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
             datos.put("fechaLectura", fechaLectura);
             datos.put("fechaEnvio", rs.getTimestamp("fecha_envio").toString());
             
-            enviarRespuesta("success", "Estado del mensaje recuperado", datos);
+//            enviarRespuesta("success", "Estado del mensaje recuperado", datos);
         } else {
-            enviarRespuesta("error", "Este mensaje o no existe");
+//            enviarRespuesta("error", "Este mensaje o no existe");
         }
     }
 }
