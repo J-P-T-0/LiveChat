@@ -143,7 +143,8 @@ public class ClientHandler extends Thread {
     private void login(Login request) throws JsonProcessingException {
         try {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
-                enviarRespuesta(new LoginAuth(request.getTelefono(), request.getPassword()));
+                String nombre = getNombreUsu(request.getTelefono());
+                enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
@@ -251,7 +252,17 @@ public class ClientHandler extends Thread {
         PreparedStatement stmt = conn.prepareStatement(sql);
         stmt.setInt(1, usuarioId);
         ResultSet rs = stmt.executeQuery();
+        rs.next();
         return rs.getInt("id");
+    }
+
+    private String getNombreUsu(String telefono) throws SQLException {
+        String sql = "SELECT nombre FROM usuarios WHERE telefono = ?";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setString(1, telefono);
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        return rs.getString("nombre");
     }
 
     /*
