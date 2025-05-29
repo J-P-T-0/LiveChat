@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = GetMensajes.class, name = "GET_MENSAJES"),
         @JsonSubTypes.Type(value = EnviarMensaje.class, name = "ENVIAR_MENSAJE"),
         @JsonSubTypes.Type(value = CrearConversacionIndividual.class, name = "CREAR_CONV_PRIV"),
+        @JsonSubTypes.Type(value = CrearGrupo.class, name = "CREAR_GRUPO"),
 })
 
 public abstract class Request {
