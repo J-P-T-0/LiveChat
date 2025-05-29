@@ -48,7 +48,7 @@ CREATE TABLE `usuarios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `usuarios` (`id`, `nombre`, `telefono`, `contrasenia`) VALUES
-(1,	'Julieta',	'1234567890',	'julieta123'),
+(1,	'Julieta',	'1234567891',	'julieta123'),
 (2,	'Callate',	'1234567890',	'callate123');
 
 DROP TABLE IF EXISTS `mensajes`;
