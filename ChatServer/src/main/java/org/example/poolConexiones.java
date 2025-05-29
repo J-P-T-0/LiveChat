@@ -16,12 +16,17 @@ public class poolConexiones implements AutoCloseable {
     private int conexionesCreadas = 0;
     
     //Variables de entorno para la conexion a la base de datos
-    private static final String DB_URL = System.getenv("DB_URL");
-    private static final String DB_USER = System.getenv("DB_USER");
-    private static final String DB_PASS = System.getenv("DB_PASS");
-    private static final String UBICACION_TRUSTSTORE = "/app/truststore/truststore.jks";
-    private static final String CONTRASENIA_TRUSTORE = System.getenv("TRUSTSTORE_PASS");
+//    private static final String DB_URL = System.getenv("DB_URL");
+//    private static final String DB_USER = System.getenv("DB_USER");
+//    private static final String DB_PASS = System.getenv("DB_PASS");
+//    private static final String UBICACION_TRUSTSTORE = "/app/truststore/truststore.jks";
+//    private static final String CONTRASENIA_TRUSTORE = System.getenv("TRUSTSTORE_PASS");
 
+    private static final String DB_URL = "jdbc:mysql://localhost/appdb";
+    private static final String DB_USER = "root";
+    private static final String DB_PASS = "";
+    private static final String UBICACION_TRUSTSTORE = "truststore/truststore.jks";
+    private static final String CONTRASENIA_TRUSTORE = "cb.pp3_UPSLP";
 
     public poolConexiones() {
         configurarSSL();
