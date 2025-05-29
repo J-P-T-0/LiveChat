@@ -64,7 +64,7 @@ public class ClientHandler extends Thread {
 
                         case "REGISTRARSE":
                             //Al registrar usuario debe volver a mostrarse LOGIN para acceder
-                            registrar(comando.get("telefono").asText(), comando.get("nombre").asText(), comando.get("password").asText());
+                            registrarUsuario(comando.get("telefono").asText(), comando.get("nombre").asText(), comando.get("password").asText());
                             break;
 
                         case "GET_CONVERSACIONES":
@@ -83,12 +83,10 @@ public class ClientHandler extends Thread {
                             break;
 
                         case "CREAR_CONVERSACION":
+                            crearConversacionIndividual(comando.get("nombre").asText(), comando.get("telefonoDestino").asText());
                             break;
                         case "CREAR_GRUPO":
-
-                            break;
-                        case "MENSAJE_PRIVADO":
-
+                            crearGrupo(comando.get("nombre").asText(), comando.get("telefonos").asText());
                             break;
                         case "MARCAR_MENSAJE_COMO_LEIDO":
                             marcarMensajeComoLeido(comando.get("mensajeId").asInt());
@@ -128,13 +126,14 @@ public class ClientHandler extends Thread {
     }
 
 private void cargarConversaciones() throws SQLException {
-    try (Connection conn = poolConexiones.obtenerConexion()) {
+    Connection conn = poolConexiones.obtenerConexion();
+    try {
         String sql = """
                 SELECT c.id, c.nombre, c.isGrupo FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
                 """;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {//try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
             stmt.setInt(1, usuarioActualID);
             ResultSet rs = stmt.executeQuery();
 
@@ -151,11 +150,17 @@ private void cargarConversaciones() throws SQLException {
             datos.set("conversaciones", conversaciones);
             enviarRespuesta("exito", "Conversaciones recuperadas con éxito", datos);
         }
-    }//try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
+    }
+    finally {
+        if (conn != null){
+            poolConexiones.liberarConexion(conn);
+        }
+    }
 }
 
     private void getMensajes(int conversacionId) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             String sql = """
                 SELECT u.nombre, m.mensaje, m.fecha_envio 
                 FROM mensajes m
@@ -179,13 +184,17 @@ private void cargarConversaciones() throws SQLException {
                 ObjectNode datos = traductorJson.createObjectNode();
                 datos.set("mensajes", mensajesArray);
                 enviarRespuesta("exito", "Mensajes recuperados con éxito", datos);    
-        } //try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
-        
+        }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
     private void enviarMensaje(int conversacionId, String mensaje) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             conn.setAutoCommit(false);
             try {
                 String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
@@ -207,11 +216,17 @@ private void cargarConversaciones() throws SQLException {
                 conn.rollback();
                 throw e;
             }
-        }//try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
+        }
+        finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
     }
 
     private void registrarUsuario(String telefono, String nombre, String password) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             conn.setAutoCommit(false); //Antes de insertar se valida que tdo este correcto
             try {
                 // Verifica teléfono e inserta usuario en la misma transacción
@@ -244,12 +259,17 @@ private void cargarConversaciones() throws SQLException {
                 conn.rollback();//Si ocurre algun error se hace roolback para devolver el estado anterior
                 throw e;
             }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
     // metodo para autenticar usuario retorna true si encuentra al usuario
     private boolean autenticarUsuario(String telefono, String password) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             String sql = "SELECT id FROM usuarios WHERE telefono = ? AND password = ?";
             try (PreparedStatement pstmt = conn.prepareStatement(sql)) {//Try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
                 pstmt.setString(1, telefono);
@@ -262,22 +282,17 @@ private void cargarConversaciones() throws SQLException {
                 }
             }
             return false;
-        }
-    }
-
-    // metodo para registrar un nuevo usuario con JSON
-    private void registrar(String telefono, String nombre, String password) {
-        try {
-            registrarUsuario(telefono, nombre, password);
-            enviarRespuesta("exito", "Usuario registrado correctamente");
-        } catch (SQLException e) {
-            enviarRespuesta("error", "Error al registrar usuario: " + e.getMessage());
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
     // metodo para validar número de teléfono
     private Integer validarTelefono(String telefono) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             String sql = "SELECT id FROM usuarios WHERE telefono = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, telefono);
@@ -290,6 +305,10 @@ private void cargarConversaciones() throws SQLException {
                 throw e;
             }
             return null;
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
@@ -316,7 +335,8 @@ private void cargarConversaciones() throws SQLException {
 
     // metodo para marcar mensaje como leído
     private void marcarMensajeComoLeido(int mensajeId) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             // verificar que el mensaje pertenezca a una conversación del usuario logeado
             String checkSql = """
                 SELECT m.id 
@@ -347,12 +367,17 @@ private void cargarConversaciones() throws SQLException {
                     }
                 }
             }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
     // metodo para obtener el estado del mensaje
     private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             String sql = """
                 SELECT m.id, m.fue_entregado, m.fecha_lectura, m.fecha_envio
                 FROM mensajes m
@@ -389,10 +414,15 @@ private void cargarConversaciones() throws SQLException {
                     enviarRespuesta("error", "Este mensaje o no existe");
                 }
             }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
-    private void crearConversacionIndividual(String telefonoDestino) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+    private void crearConversacionIndividual(String nombreConv,String telefonoDestino) throws SQLException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             conn.setAutoCommit(false); // Se inicia la transacción manualmente
 
             try {
@@ -419,7 +449,7 @@ private void cargarConversaciones() throws SQLException {
                     if (rs.next()) {
                         ObjectNode datos = traductorJson.createObjectNode();
                         datos.put("idConversacion", rs.getInt("id"));
-                        enviarRespuesta("success", "Ya existe una conversación con este usuario", datos);
+                        enviarRespuesta("exito", "Ya existe una conversación con este usuario", datos);
                         return;
                     }
                 }
@@ -427,7 +457,7 @@ private void cargarConversaciones() throws SQLException {
                 // Si no existe, crear conversación
                 String sql = "INSERT INTO conversaciones (nombre, isGrupo) VALUES (?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                    stmt.setString(1, "Chat privado");
+                    stmt.setString(1, nombreConv);
                     stmt.setBoolean(2, false); // conversación individual
                     stmt.executeUpdate();
 
@@ -446,7 +476,7 @@ private void cargarConversaciones() throws SQLException {
 
                             ObjectNode datos = traductorJson.createObjectNode();
                             datos.put("idConversacion", nuevoIdConversacion);
-                            enviarRespuesta("success", "Conversación individual creada", datos);
+                            enviarRespuesta("exito", "Conversación individual creada", datos);
                         }
                     }
                 }
@@ -458,27 +488,16 @@ private void cargarConversaciones() throws SQLException {
                 conn.rollback(); // Revierte todos los cambios si hubo error
                 throw e;
             }
-        }
-    }
-
-
-    private void crearConversacionPrivada(int remitenteId) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
-            String sql = "SELECT telefono FROM usuarios WHERE id = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, remitenteId);
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    String telefonoRemitente = rs.getString("telefono");
-                    crearConversacionIndividual(telefonoRemitente); // Reutiliza la lógica validada
-                } else {
-                    enviarRespuesta("error", "No se encontró al usuario con ID " + remitenteId);
-                }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
             }
         }
     }
+
     private void crearGrupo(String nombreGrupo, String telefonos) throws SQLException {
-        try (Connection conn = poolConexiones.obtenerConexion()) {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
             conn.setAutoCommit(false); // Inicia transacción para el grupo
 
             try {
@@ -512,7 +531,7 @@ private void cargarConversaciones() throws SQLException {
                 if (telefonosInvalidos.length() > 0) {
                     ObjectNode advertencia = traductorJson.createObjectNode();
                     advertencia.put("telefonosInvalidos", telefonosInvalidos.toString());
-                    enviarRespuesta("warning", "Algunos números no se pudieron agregar", advertencia);
+                    enviarRespuesta("advertencia", "Algunos números no se pudieron agregar", advertencia);
                 }
 
                 // Crea conversación tipo grupo
@@ -544,7 +563,7 @@ private void cargarConversaciones() throws SQLException {
                             ObjectNode datos = traductorJson.createObjectNode();
                             datos.put("idGrupo", idConversacion);
                             datos.put("miembros", participantesValidos.size());
-                            enviarRespuesta("success", "Grupo creado exitosamente", datos);
+                            enviarRespuesta("exito", "Grupo creado exitosamente", datos);
                         }
                     }
                 }
@@ -555,6 +574,10 @@ private void cargarConversaciones() throws SQLException {
                 conn.rollback();
                 enviarRespuesta("error", "Fallo al crear grupo: " + e.getMessage());
                 throw e;
+            }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
             }
         }
     }

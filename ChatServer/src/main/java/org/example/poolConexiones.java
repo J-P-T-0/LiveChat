@@ -52,7 +52,7 @@ public class poolConexiones implements AutoCloseable {
         while (!cerrado) {
             Connection conn = conexiones.poll();// Retorna y remueve el primer elemento de la cola
             if (conn != null) {
-                if (conn.isValid(1)) {
+                if (conn.isValid(5)) {
                     return conn;
                 } else {
                     conn.close();
@@ -65,7 +65,7 @@ public class poolConexiones implements AutoCloseable {
             } else {
                 try {
                     conn = conexiones.take(); // Bloquea hasta que haya una conexión disponible
-                    if (conn.isValid(1)) {
+                    if (conn.isValid(5)) {
                         return conn;
                     }
                 } catch (InterruptedException e) {
