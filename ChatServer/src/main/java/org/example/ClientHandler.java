@@ -33,8 +33,9 @@ public class ClientHandler extends Thread {
     private final ObjectMapper traductorJson = new ObjectMapper();
 
     // Constructor que recibe el socket del cliente
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, poolConexiones poolConexiones) {
         this.socket = socket;
+        this.poolConexiones = poolConexiones;
     }
 
 

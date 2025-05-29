@@ -22,6 +22,7 @@ public class poolConexiones implements AutoCloseable {
     private static final String UBICACION_TRUSTSTORE = "/app/truststore/truststore.jks";
     private static final String CONTRASENIA_TRUSTORE = System.getenv("TRUSTSTORE_PASS");
 
+
     public poolConexiones() {
         configurarSSL();
         iniciarPool();
