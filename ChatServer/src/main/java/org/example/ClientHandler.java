@@ -84,11 +84,11 @@ public class ClientHandler extends Thread {
                         case CrearConversacionIndividual crearConvPrivRequest -> crearConversacionIndividual(crearConvPrivRequest);
 
                         case CrearGrupo crearGrupoRequest -> crearGrupo(crearGrupoRequest);
-/*
-                        case "MARCAR_MENSAJE_COMO_LEIDO":
-                            break;
-                        case "OBTENER_ESTADO_MENSAJE":
-                            break;*/
+
+                        case GetEstadoMensaje getEstadoMensajeRequest -> obtenerEstadoMensaje(getEstadoMensajeRequest);
+
+                        case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
@@ -437,7 +437,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
     }
 
     // metodo para marcar mensaje como leído
-    private void marcarMensajeComoLeido(int mensajeId) throws SQLException {
+    private void marcarMensajeComoLeido(MarcarLeido request) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             // verificar que el mensaje pertenezca a una conversación del usuario logeado
@@ -449,24 +449,24 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             """;
 
             try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-                checkStmt.setInt(1, mensajeId);
+                checkStmt.setInt(1, request.getMensajeID());
                 checkStmt.setInt(2, usuarioActualID);
 
                 if (!checkStmt.executeQuery().next()) {
-                    //enviarRespuesta("error", "mensaje no pertenece a ninguna de tus conversaciones");
+                    enviarRespuesta(new Aviso("error", "mensaje no pertenece a ninguna de tus conversaciones"));
                     return;
                 }
 
                 // Si pertenece a alguna conversacion del usuario
                 String updateSql = "UPDATE mensajes SET fecha_lectura = NOW() WHERE id = ?";
                 try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                    updateStmt.setInt(1, mensajeId);
+                    updateStmt.setInt(1, request.getMensajeID());
                     int filasActualizadas = updateStmt.executeUpdate();
 
                     if (filasActualizadas > 0) {
-                        //enviarRespuesta("success", "Mensaje marcado como leído");
+                        enviarRespuesta(new Aviso("exito", "Mensaje marcado como leído"));
                     } else {
-//                enviarRespuesta("error", "No se pudo marcar el mensaje como leído");
+                        enviarRespuesta(new Aviso("error", "No se pudo marcar el mensaje como leído"));
                     }
                 }
             }
@@ -478,7 +478,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
     }
 
     // metodo para obtener el estado del mensaje
-    private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
+    private void obtenerEstadoMensaje(GetEstadoMensaje request) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             String sql = """
@@ -489,12 +489,11 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             """;
 
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, mensajeId);
+                stmt.setInt(1, request.getMensajeID());
                 stmt.setInt(2, usuarioActualID);
                 ResultSet rs = stmt.executeQuery();
 
                 if (rs.next()) {
-                    ObjectNode datos = traductorJson.createObjectNode();
                     String estadoMensaje;
                     String fechaLectura = "";
 
@@ -508,13 +507,9 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         estadoMensaje = "no entregado";
                     }
 
-                    datos.put("estadoMensaje", estadoMensaje);
-                    datos.put("fechaLectura", fechaLectura);
-                    datos.put("fechaEnvio", rs.getTimestamp("fecha_envio").toString());
-
-//            enviarRespuesta("success", "Estado del mensaje recuperado", datos);
+                    enviarRespuesta(new ReturnEstadoMensaje(estadoMensaje,fechaLectura,rs.getTimestamp("fecha_envio").toString() ));
                 } else {
-//            enviarRespuesta("error", "Este mensaje o no existe");
+                    enviarRespuesta(new Aviso("error", "Este mensaje o no existe"));
                 }
             }
         }finally {
