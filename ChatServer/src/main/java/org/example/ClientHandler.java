@@ -93,7 +93,7 @@ public class ClientHandler extends Thread {
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
-                    enviarRespuesta("error", "Error al procesar comando: " + e.getMessage());
+                    enviarRespuesta(new Aviso("error", "Error al procesar comando: " + e.getMessage()));
                 }
             }
         } catch (Exception e) {
@@ -134,7 +134,7 @@ public class ClientHandler extends Thread {
         }
     }
 
-private void cargarConversaciones() throws SQLException {
+private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
         String sql = """
@@ -170,7 +170,7 @@ private void cargarConversaciones() throws SQLException {
     }
 }
 
-    private void getMensajes(int conversacionId) throws SQLException {
+    private void getMensajes(GetMensajes request) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
         String sql = """
@@ -207,18 +207,18 @@ private void cargarConversaciones() throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             conn.setAutoCommit(false);
-        String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
-        try{
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, request.getConversacionID());
-            stmt.setInt(2, usuarioActualID);
-            stmt.setString(3, request.getMensaje());
-            stmt.executeUpdate();
-            getMensajes(new GetMensajes(request.getConversacionID()));
-            conn.commit();
-        }catch(Exception e){
-            conn.rollback();
-            enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
+            String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
+            try {
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, request.getConversacionID());
+                stmt.setInt(2, usuarioActualID);
+                stmt.setString(3, request.getMensaje());
+                stmt.executeUpdate();
+                getMensajes(new GetMensajes(request.getConversacionID()));
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
         }
         } finally {
             conn.setAutoCommit(true);
@@ -430,7 +430,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
             }
         }
 }
-    private void crearConversacionIndividual(String nombreConv,String telefonoDestino) throws SQLException {
+    private void crearConversacionIndividual(String nombreConv,String telefonoDestino) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             conn.setAutoCommit(false); // Se inicia la transacción manualmente
@@ -439,7 +439,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
                 // Validar si el número destino existe
                 Integer idDestino = validarTelefono(telefonoDestino);
                 if (idDestino == null) {
-                    enviarRespuesta("error", "No existe usuario con el número: " + telefonoDestino);
+                    enviarRespuesta(new Aviso("error", "No existe usuario con el número: " + telefonoDestino));
                     return;
                 }
 
@@ -459,7 +459,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
                     if (rs.next()) {
                         ObjectNode datos = traductorJson.createObjectNode();
                         datos.put("idConversacion", rs.getInt("id"));
-                        enviarRespuesta("exito", "Ya existe una conversación con este usuario", datos);
+                        enviarRespuesta(new Aviso("exito", "Ya existe una conversación con este usuario"));
                         return;
                     }
                 }
@@ -486,7 +486,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
 
                             ObjectNode datos = traductorJson.createObjectNode();
                             datos.put("idConversacion", nuevoIdConversacion);
-                            enviarRespuesta("exito", "Conversación individual creada", datos);
+                            enviarRespuesta(new Aviso("exito", "Conversación individual creada"));
                         }
                     }
                 }
@@ -506,7 +506,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
         }
     }
 
-    private void crearGrupo(String nombreGrupo, String telefonos) throws SQLException {
+    private void crearGrupo(String nombreGrupo, String telefonos) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             conn.setAutoCommit(false); // Inicia transacción para el grupo
@@ -534,7 +534,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
 
                 // Si no hay más participantes que el creador, aborta
                 if (participantesValidos.size() < 2) {
-                    enviarRespuesta("error", "No se puede crear un grupo sin participantes válidos");
+                    enviarRespuesta(new Aviso("error", "No se puede crear un grupo sin participantes válidos"));
                     return;
                 }
 
@@ -542,7 +542,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
                 if (telefonosInvalidos.length() > 0) {
                     ObjectNode advertencia = traductorJson.createObjectNode();
                     advertencia.put("telefonosInvalidos", telefonosInvalidos.toString());
-                    enviarRespuesta("advertencia", "Algunos números no se pudieron agregar", advertencia);
+                    enviarRespuesta(new Aviso("advertencia", "Algunos números no se pudieron agregar"));
                 }
 
                 // Crea conversación tipo grupo
@@ -574,7 +574,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
                             ObjectNode datos = traductorJson.createObjectNode();
                             datos.put("idGrupo", idConversacion);
                             datos.put("miembros", participantesValidos.size());
-                            enviarRespuesta("exito", "Grupo creado exitosamente", datos);
+                            enviarRespuesta(new Aviso("exito", "Grupo creado exitosamente"));
                         }
                     }
                 }
@@ -583,7 +583,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
 
             } catch (SQLException e) {
                 conn.rollback();
-                enviarRespuesta("error", "Fallo al crear grupo: " + e.getMessage());
+                enviarRespuesta(new Aviso("error", "Error al crear grupo: " + e.getMessage()));
                 throw e;
             }
         }finally {
@@ -594,7 +594,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
         }
     }
 
-    private Integer validarTelefono(String telefono) throws SQLException {
+    private Integer validarTelefono(String telefono) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             String sql = "SELECT id FROM usuarios WHERE telefono = ?";
@@ -605,7 +605,7 @@ private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
                     return rs.getInt("id");
                 }
             } catch (SQLException e) {
-                enviarRespuesta("error", "Error al validar teléfono: " + e.getMessage());
+                enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
                 throw e;
             }
             return null;
