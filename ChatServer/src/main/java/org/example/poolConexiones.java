@@ -3,13 +3,14 @@ package org.example;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.LinkedList;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 
 public class poolConexiones implements AutoCloseable {
     
     private static final int CONEXIONES_SIMULTANEAS = 20;
-    private final LinkedList<Connection> conexiones = new LinkedList<>();
+    private final BlockingQueue<Connection> conexiones = new LinkedBlockingQueue<>(CONEXIONES_SIMULTANEAS);
     //Controla cuando hay conexiones disponibles para ser utilizadas por los hilos, cuando se cierra el pool de conexiones se marca el valor a true para que no se puedan utilizar las conexiones
     private boolean cerrado = false;
     private int conexionesCreadas = 0;
@@ -47,48 +48,43 @@ public class poolConexiones implements AutoCloseable {
         return DriverManager.getConnection(DB_URL, DB_USER, DB_PASS);
     }
 
-    public synchronized Connection obtenerConexion() throws SQLException {
+    public Connection obtenerConexion() throws SQLException {
         while (!cerrado) {
-            if (!conexiones.isEmpty()) {
-                Connection conn = conexiones.removeFirst();
-                try {
-                    if (conn.isValid(1)) {
-                        return conn;
-                    } else {
-                        conn.close(); // eliminar conexión inválida
-                        conexionesCreadas--;
-                    }
-                } catch (SQLException e) {
+            Connection conn = conexiones.poll();// Retorna y remueve el primer elemento de la cola
+            if (conn != null) {
+                if (conn.isValid(1)) {
+                    return conn;
+                } else {
+                    conn.close();
                     conexionesCreadas--;
                 }
             } else if (conexionesCreadas < CONEXIONES_SIMULTANEAS) {
-                //Crear nueva si no llegamos al límite
                 Connection nueva = crearConexion();
                 conexionesCreadas++;
                 return nueva;
             } else {
-                // Esperar si no hay disponibles y no se pueden crear más
                 try {
-                    wait();
+                    conn = conexiones.take(); // Bloquea hasta que haya una conexión disponible
+                    if (conn.isValid(1)) {
+                        return conn;
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new SQLException("Interrupción mientras esperaba una conexión", e);
                 }
             }
         }
-
         throw new SQLException("El pool de conexiones está cerrado");
     }
 
-    public synchronized void liberarConexion(Connection conexion) throws SQLException {
+    public void liberarConexion(Connection conexion) throws SQLException {
         if (conexion == null || conexion.isClosed()) {
             conexionesCreadas--;
             return;
         }
 
         if (!cerrado) {
-            conexiones.addLast(conexion);
-            notifyAll(); //Notifica a hilos que están esperando
+            conexiones.offer(conexion);
         } else {
             conexion.close();
             conexionesCreadas--;
@@ -103,7 +99,7 @@ public class poolConexiones implements AutoCloseable {
             try {
                 c.close();
             } catch (SQLException e) {
-                if (errores == null) errores = e;
+                if (errores == null) errores = e;//Se almacenan todos los errores
                 else errores.addSuppressed(e);
             }
         }

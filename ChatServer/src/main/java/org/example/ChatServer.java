@@ -5,11 +5,12 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
 
-public class ChatServer {
+public class ChatServer implements AutoCloseable {
     private int puerto;
     private ServerSocket servidor;
-    //pool de conexiones
+    private volatile boolean ejecutando = true;
     protected poolConexiones poolConn;
+
     public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;
         this.poolConn = new poolConexiones();
@@ -20,20 +21,34 @@ public class ChatServer {
             servidor = new ServerSocket(puerto);
             System.out.println("Server escuchando en puerto " + puerto);
 
-            while (true) {
+            while (ejecutando) {
                 Socket socketCliente = servidor.accept();
                 System.out.println("Cliente conectado");
 
                 ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
-                manejador.start(); // Hilo por cliente
+                manejador.start();
             }
         } catch (IOException e) {
             System.err.println("Error al iniciar el servidor: " + e.getMessage());
         }
     }
 
-    public static void main(String[] args) throws SQLException {
-        ChatServer servidor = new ChatServer(1234);//puerto al que escucha el server
-        servidor.start();
+    @Override
+    public void close() throws Exception {//Cerrar correctamente el server
+        ejecutando = false;
+        if (servidor != null) {
+            servidor.close();
+        }
+        if (poolConn != null) {
+            poolConn.close();
+        }
+    }
+
+    public static void main(String[] args) {//Try-with-resources con el metodo close de autocloseable sobreescrito para que se cierre el servidor al finalizar start();
+        try (ChatServer servidor = new ChatServer(1234)) {
+            servidor.start();
+        } catch (Exception e) {
+            System.err.println("Error fatal del servidor: " + e.getMessage());
+        }
     }
 }
