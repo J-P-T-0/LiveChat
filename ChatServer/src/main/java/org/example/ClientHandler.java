@@ -53,7 +53,7 @@ public class ClientHandler extends Thread {
             }
 
             // Confirmar conexion
-            enviarRespuesta(new Aviso("éxito","conexión establecida con el servidor"));
+            //enviarRespuesta(new Aviso("éxito","conexión establecida con el servidor"));
 
 
             try {
@@ -105,14 +105,9 @@ public class ClientHandler extends Thread {
                         case GetConversaciones _ -> cargarConversaciones();
 
                         case GetMensajes mensajesRequest -> getMensajes(mensajesRequest);
-/*
-                        case "ENVIAR_MENSAJE":
-                            //enviarMensaje(
-                            //        comando.get("conversacionId").asInt(),
-                            //       comando.get("mensaje").asText()
-                            //);
-                            break;
 
+                        case EnviarMensaje enviarMensajeRequest ->enviarMensaje(enviarMensajeRequest);
+/*
                         case "CREAR_CONVERSACION": break;
 
                         case "CREAR_GRUPO":
@@ -159,7 +154,7 @@ public class ClientHandler extends Thread {
             if(existeTelefono(request.getTelefono())){
                 throw new Exception("El número ya está registrado, pedir número nuevamente.");
             }
-            usuarioRegistrado(request.getTelefono(), request.getNombre(), request.getContrasena());
+            usuarioRegistrado(request.getNombre(), request.getTelefono(), request.getContrasena());
             enviarRespuesta(new Aviso("éxito","Se registró el usuario"));
         } catch (Exception e) {
             enviarRespuesta(new Aviso("error", "Error al registrar usuario: " + e.getMessage()));
@@ -177,7 +172,7 @@ public class ClientHandler extends Thread {
                 """;
         try{
             //Recuperar la primera conversación
-            this.primeraConversacion = primeraConversacionUsuario(this.usuarioAutenticadoId);
+            this.primeraConversacion = primeraConversacionUsuario(this.usuarioAutenticadoId)-1;
             //Ejecutar la query
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioAutenticadoId);
@@ -196,7 +191,7 @@ public class ClientHandler extends Thread {
     }
 
     // metodo que carga las conversaciones del usuario
-    private void getMensajes(GetMensajes request) throws SQLException {
+    private void getMensajes(GetMensajes request) throws JsonProcessingException {
         String sql = """
                 SELECT u.nombre, m.mensaje, m.fecha_envio 
                 FROM mensajes m
@@ -205,39 +200,35 @@ public class ClientHandler extends Thread {
                 ORDER BY m.fecha_envio
                 LIMIT ?,50
                 """;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        try{
+            PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, request.getConversacionId());
             stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
-            ArrayNode mensajesArray = objectMapper.createArrayNode();
+            ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
             while (rs.next()) {
-                ObjectNode mensaje = objectMapper.createObjectNode();
-                mensaje.put("nombre", rs.getString("nombre"));
-                mensaje.put("mensaje", rs.getString("mensaje"));
-                mensaje.put("fecha_envio", rs.getTimestamp("fecha_envio").toString());
-                mensajesArray.add(mensaje);
+                datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
             }
-
-            ObjectNode datos = objectMapper.createObjectNode();
-            datos.set("mensajes", mensajesArray);
-            //enviarRespuesta("success", "Mensajes recuperados con éxito", datos);
+            enviarRespuesta(new ReturnMensajes(datosMensajes));
+        }catch(Exception e){
+            enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()));
         }
+
     }
 
-    private void enviarMensaje(int conversacionId, String mensaje) throws SQLException {
+    private void enviarMensaje(EnviarMensaje request) throws JsonProcessingException {
         String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, conversacionId);
+        try{
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, request.getConversacionID());
             stmt.setInt(2, usuarioAutenticadoId);
-            stmt.setString(3, mensaje);
-            int filas = stmt.executeUpdate();
-
-            if (filas > 0) {
-                //enviarRespuesta("success", "Mensaje enviado exitosamente");
-            } else {
-                //enviarRespuesta("error", "Error al enviar mensaje");
-            }
+            stmt.setString(3, request.getMensaje());
+            stmt.executeUpdate();
+            getMensajes(new GetMensajes(request.getConversacionID()));
+        }catch(Exception e){
+            enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
         }
     }
 
