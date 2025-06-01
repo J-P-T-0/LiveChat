@@ -133,11 +133,40 @@ public class ClientHandler extends Thread {
         }
     }
 
+    private ArrayList<String> getParticipantes(int conv_id)  throws SQLException{
+        Connection conn = poolConexiones.obtenerConexion();
+        ArrayList<String> participantes = new ArrayList<>();
+
+        String query = """               
+            SELECT u.nombre AS participante
+            FROM conversaciones c
+            INNER JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+            INNER JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+            INNER JOIN usuarios u ON cu2.usuario_id = u.id
+            WHERE cu1.usuario_id = ? AND cu1.conversacion_id = ?
+            LIMIT 0, 50;
+            """;
+
+        //Ejecutar la query
+        PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, usuarioActualID);
+        stmt.setInt(2, conv_id);
+        ResultSet rs = stmt.executeQuery();
+        rs.getFetchSize();
+
+        while (rs.next()) {
+            participantes.add(rs.getString("participante"));
+        }
+
+
+        return participantes;
+    }
+
 private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
         String sql = """
-                SELECT c.id, c.nombre, c.isGrupo 
+                SELECT c.id, c.nombre, c.isGrupo
                 FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
@@ -153,9 +182,11 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosConversacion> datosConv = new ArrayList<>();
+
             while (rs.next()) {
+                ArrayList<String> participantes = getParticipantes(rs.getInt("id"));
                 //conv es como crear un objeto de tipo conversacion
-                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo")));
+                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes));
             }
             enviarRespuesta(new ReturnConversaciones(datosConv));
         }catch (SQLException e) {
@@ -173,10 +204,10 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         Connection conn = poolConexiones.obtenerConexion();
         try {
         String sql = """
-                SELECT u.nombre, m.mensaje, m.fecha_envio 
+                SELECT u.nombre, m.mensaje, m.fecha_envio
                 FROM mensajes m
                 JOIN usuarios u ON m.remitente_id = u.id
-                WHERE m.conversacion_id = ? 
+                WHERE m.conversacion_id = ?
                 ORDER BY m.fecha_envio
                 LIMIT ?,50
                 """;
@@ -442,7 +473,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         try {
             // verificar que el mensaje pertenezca a una conversación del usuario logeado
             String checkSql = """
-            SELECT m.id 
+            SELECT m.id
             FROM mensajes m
             JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
             WHERE m.id = ? AND cu.usuario_id = ?
