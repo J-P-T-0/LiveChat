@@ -2,6 +2,7 @@ package Interfaz;
 
 import Main.ConexionServer;
 import Main.LoginC;
+import Requests.CrearConversacionIndividual;
 import Requests.EnviarMensaje;
 import Requests.GetConversaciones;
 import Requests.GetMensajes;
@@ -22,9 +23,12 @@ import java.sql.SQLException;
 
 public class GUI extends JFrame implements Runnable {
     //Tabla de conversaciones
+    private LoginAuth loginInfo;
     private JTable tablaConversaciones;
     private DefaultTableModel modeloConversaciones;
     //tabla de mensajes
+    private Thread hiloMensajes; // Este hilo estará revisando nuevos mensajes solo de la conversación activa
+
     private JTable tablaMensajes;
     private DefaultTableModel modeloMensajes;
     //Mensaje
@@ -76,7 +80,12 @@ public class GUI extends JFrame implements Runnable {
         JButton btnEnviar = new JButton("Enviar");
         panelMensaje.add(txtMensaje, BorderLayout.CENTER);
         panelMensaje.add(btnEnviar, BorderLayout.EAST);
+        JButton btnNuevoChat = new JButton("Nuevo Chat");
+        btnNuevoChat.addActionListener(e -> crearNuevoChat());
 
+        JPanel panelDerecho = new JPanel(new BorderLayout());
+        panelDerecho.add(btnNuevoChat, BorderLayout.NORTH);
+        add(panelDerecho, BorderLayout.EAST);
         btnEnviar.addActionListener(e -> enviarMensaje());
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tablaConversaciones), new JScrollPane(tablaMensajes));// como en el whats app real!
@@ -88,7 +97,7 @@ public class GUI extends JFrame implements Runnable {
 
     //funciones ya del chat
     private void cargarConversaciones() {
-        try{
+        try {
             String jsonRequest = objectMapper.writeValueAsString(new GetConversaciones());
             System.out.println(jsonRequest);
             salida.println(jsonRequest);
@@ -96,19 +105,22 @@ public class GUI extends JFrame implements Runnable {
             String jsonResponse = entrada.readLine();
             System.out.println(jsonResponse);
             Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-            if(respuesta instanceof ReturnConversaciones){
-                ReturnConversaciones returnConversaciones = (ReturnConversaciones) respuesta;
-                for(DatosConversacion e: returnConversaciones.getDatosConversacion()){
+
+            if (respuesta instanceof ReturnConversaciones returnConversaciones) {
+                modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
+                for (DatosConversacion e : returnConversaciones.getDatosConversacion()) {
+                    // Validación: no mostrar conversación contigo mismo
+                    if (!e.getNombre().equals(loginInfo.getTelefono())) {
                         modeloConversaciones.addRow(new Object[]{
                                 e.getId(),
                                 e.getNombre()
                         });
+                    }
                 }
-            }else if (respuesta instanceof Aviso){
-                Aviso aviso = (Aviso) respuesta;
+            } else if (respuesta instanceof Aviso aviso) {
                 mostrarError(aviso.getDescripcion());
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.println("Error al obtener conversación: " + e.getMessage());
         }
     }
@@ -116,9 +128,17 @@ public class GUI extends JFrame implements Runnable {
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
-        int conversationId = (int) modeloConversaciones.getValueAt(fila, 0);
 
-        new Thread(() -> {
+        int conversationId = Integer.parseInt(modeloConversaciones.getValueAt(fila, 0).toString());
+
+
+        // Antes de crear un nuevo hilo, detenemos el anterior si sigue vivo
+        if (hiloMensajes != null && hiloMensajes.isAlive()) {
+            hiloMensajes.interrupt(); // Le decimos al hilo anterior que se detenga
+        }
+
+        // Creamos un nuevo hilo que estará escuchando mensajes para esta conversación
+        hiloMensajes = new Thread(() -> {
             try {
                 String jsonPrevResponse = null;
                 while (!Thread.currentThread().isInterrupted()) {
@@ -127,21 +147,18 @@ public class GUI extends JFrame implements Runnable {
 
                     String jsonResponse = entrada.readLine();
 
-                    // Si la respuesta es igual a la anterior, esperar un momento y continuar
                     if (jsonResponse.equals(jsonPrevResponse)) {
-                        Thread.sleep(500); // Esperar 500ms antes de la siguiente verificación
-                        continue;
+                        Thread.sleep(500);
+                        continue; // No hay nada nuevo, así que seguimos
                     }
 
-                    System.out.println("Nuevo mensaje recibido");
+                    jsonPrevResponse = jsonResponse; // Guardamos la última respuesta
+
                     Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
 
-                    if (respuesta instanceof ReturnMensajes) {
-                        ReturnMensajes returnMensajes = (ReturnMensajes) respuesta;
-
-                        // Actualizar la UI en el hilo de eventos de Swing
+                    if (respuesta instanceof ReturnMensajes returnMensajes) {
                         SwingUtilities.invokeLater(() -> {
-                            modeloMensajes.setRowCount(0);
+                            modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
                             for (DatosMensajes e : returnMensajes.getDatosMensajes()) {
                                 modeloMensajes.addRow(new Object[]{
                                         e.getNombre(),
@@ -150,20 +167,20 @@ public class GUI extends JFrame implements Runnable {
                                 });
                             }
                         });
-                    } else if (respuesta instanceof Aviso) {
-                        Aviso aviso = (Aviso) respuesta;
-                        SwingUtilities.invokeLater(() ->
-                                mostrarError(aviso.getDescripcion())
-                        );
+                    } else if (respuesta instanceof Aviso aviso) {
+                        SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
                     }
 
-                    jsonPrevResponse = jsonResponse;
+                    Thread.sleep(500); // Esperamos un poquito antes de volver a pedir
                 }
             } catch (Exception e) {
-                System.out.println("Error al obtener mensajes: " + e.getMessage());
+                System.out.println("Error en hilo de mensajes: " + e.getMessage());
             }
-        }).start();
+        });
+
+        hiloMensajes.start(); // Inicia el nuevo hilo para esta conversación
     }
+
 
     private void enviarMensaje() {
         int fila = tablaConversaciones.getSelectedRow();
@@ -172,7 +189,8 @@ public class GUI extends JFrame implements Runnable {
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        int conversationId = (int) modeloConversaciones.getValueAt(fila, 0);
+        int conversationId = Integer.parseInt(modeloConversaciones.getValueAt(fila, 0).toString());
+
         try{
             String jsonRequest = objectMapper.writeValueAsString(new EnviarMensaje(txtMensaje.getText(),conversationId));
             System.out.println(jsonRequest);
@@ -193,14 +211,49 @@ public class GUI extends JFrame implements Runnable {
         txtMensaje.setText("");
         cargarMensajes();
     }
+    //clase dedicada para la creacion de chats 1v1
+    private void crearNuevoChat() {
+        String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 
+        if (telefonoDestino == null || telefonoDestino.isBlank() || telefonoDestino.equals(loginInfo.getTelefono())) {
+            JOptionPane.showMessageDialog(this, "Número inválido o es tu propio número.");
+            return;
+        }
+
+        try {
+            CrearConversacionIndividual solicitud = new CrearConversacionIndividual(loginInfo.getTelefono(), telefonoDestino);
+            String json = objectMapper.writeValueAsString(solicitud);
+            salida.println(json);
+
+            String respuestaJson = entrada.readLine();
+            Respuesta respuesta = objectMapper.readValue(respuestaJson, Respuesta.class);
+
+            if (respuesta instanceof ReturnConvID convID) {
+                // Mostrar mensaje de éxito
+                JOptionPane.showMessageDialog(this, "¡Conversación creada!");
+
+
+
+                // Agregar manualmente la conversación a la tabla
+                modeloConversaciones.addRow(new Object[]{
+                        convID.getConvID(),
+                        telefonoDestino
+                });
+
+            } else if (respuesta instanceof Aviso aviso) {
+                JOptionPane.showMessageDialog(this, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.ERROR_MESSAGE);
+            }
+
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Error al crear la conversación: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
     public static void mostrarError(String msg) {
         JOptionPane.showMessageDialog(null, msg, "Error", JOptionPane.ERROR_MESSAGE);
     }
-
     @Override
     public void run() {
         cargarMensajes();
     }
-
 }
