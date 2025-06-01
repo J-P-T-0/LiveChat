@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 
 public class GUI extends JFrame implements Runnable {
     //Tabla de conversaciones
@@ -61,13 +58,19 @@ public class GUI extends JFrame implements Runnable {
         // Conversaciones
         modeloConversaciones = new DefaultTableModel();
         modeloConversaciones.setColumnIdentifiers(new String[]{"ID", "Nombre"});
-        tablaConversaciones = new JTable(modeloConversaciones);
+        tablaConversaciones = new JTable(modeloConversaciones){
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
         tablaConversaciones.getSelectionModel().addListSelectionListener(e -> cargarMensajes());
 
         // Mensajes
         modeloMensajes = new DefaultTableModel();
         modeloMensajes.setColumnIdentifiers(new String[]{"Remitente", "Mensaje", "Fecha"});
         tablaMensajes = new JTable(modeloMensajes);
+        tablaMensajes.setEnabled(false);
 
         // Entrada de mensaje
         JPanel panelMensaje = new JPanel(new BorderLayout());
@@ -147,7 +150,7 @@ public class GUI extends JFrame implements Runnable {
                     String jsonResponse = entrada.readLine();
 
                     if (jsonResponse.equals(jsonPrevResponse)) {
-                        Thread.sleep(500);
+                        //Thread.sleep(500);
                         continue; // No hay nada nuevo, así que seguimos
                     }
 
@@ -170,9 +173,10 @@ public class GUI extends JFrame implements Runnable {
                         SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
                     }
 
-                    Thread.sleep(500); // Esperamos un poquito antes de volver a pedir
+                    //Thread.sleep(500); // Esperamos un poquito antes de volver a pedir
                 }
             } catch (Exception e) {
+                e.printStackTrace();
                 System.out.println("Error en hilo de mensajes: " + e.getMessage());
             }
         });
