@@ -1,19 +1,14 @@
 package Main;
 
-import Interfaz.ChatUi;
 import Interfaz.GUI;
 import Requests.*;
 import Respuestas.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.Socket;
 
 public class LoginC extends JFrame {
     private JTextField txtTelefono;
@@ -24,12 +19,23 @@ public class LoginC extends JFrame {
     //Servidor
     private PrintWriter salida;
     private BufferedReader entrada;
-    private Socket socket;
-    private final ObjectMapper objectMapper = new ObjectMapper(); // Agregar al inicio de la clase
+    private ObjectMapper objectMapper;
+    public static ConexionServer conexionServer;
 
     public LoginC() {
-        initComponents();
         conectarAServidor();
+        initComponents();
+    }
+
+    private void conectarAServidor() {
+        try {
+            conexionServer= new ConexionServer("147.185.221.28", 37296);
+            this.entrada= conexionServer.getEntrada();
+            this.salida= conexionServer.getSalida();
+            this.objectMapper= conexionServer.getObjectMapper();
+        } catch (Exception e) {
+            GUI.mostrarError("Error al conectar con el servidor.");
+        }
     }
 
     private void initComponents(){
@@ -54,7 +60,7 @@ public class LoginC extends JFrame {
 
         add(new JLabel("No te has registrado?"));
         btnRegistrar = new JButton("Registrar");
-        btnRegistrar.addActionListener(e -> {});
+        btnRegistrar.addActionListener(e -> {new Registro().setVisible(true); this.dispose();});
         add(btnRegistrar);
     }
 
@@ -88,7 +94,7 @@ public class LoginC extends JFrame {
                 LoginAuth loginAuth = (LoginAuth) respuestaObj;
                 this.dispose();
                 //new ChatUi(loginAuth, socket).setVisible(true);
-                new GUI(loginAuth, socket).setVisible(true);
+                new GUI().setVisible(true);
             }else if (respuestaObj instanceof Aviso){
                 Aviso aviso = (Aviso) respuestaObj;
                 JOptionPane.showMessageDialog(this,aviso.getDescripcion(),aviso.getEstado(),JOptionPane.ERROR_MESSAGE);
@@ -100,18 +106,8 @@ public class LoginC extends JFrame {
         }
     }
 
-    private void conectarAServidor() {
-        try {
-            // ip publica:puerto
-            socket = new Socket("147.185.221.28", 37296); // <- actualiza si cambia el túnel
-            salida = new PrintWriter(socket.getOutputStream(), true);
-            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error al conectar al servidor: " + e.getMessage());
-        }
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(()-> new LoginC().setVisible(true));
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new LoginC().setVisible(true));
-    }
 }
