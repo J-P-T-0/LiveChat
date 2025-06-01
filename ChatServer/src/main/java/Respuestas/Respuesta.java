@@ -17,6 +17,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = LoginAuth.class, name = "LOGIN_AUTH"),
         @JsonSubTypes.Type(value = ReturnConversaciones.class, name = "RETURN_CONVERSACIONES"),
         @JsonSubTypes.Type(value = ReturnMensajes.class, name = "RETURN_MENSAJES"),
+        @JsonSubTypes.Type(value = ReturnConvID.class, name = "RETURN_CONV_ID"),
+        @JsonSubTypes.Type(value = NumsInvalidos.class, name = "NUMS_INVALIDOS"),
+        @JsonSubTypes.Type(value = GroupParticipants.class, name = "GROUP_PARTICIPANTS"),
+        @JsonSubTypes.Type(value = ReturnEstadoMensaje.class, name = "RETURN_ESTADO_MENSAJE"),
 })
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
