@@ -14,9 +14,9 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GUI extends JFrame implements Runnable {
     //Tabla de conversaciones
@@ -35,6 +35,9 @@ public class GUI extends JFrame implements Runnable {
     private static PrintWriter salida;
     private static BufferedReader entrada;
     private static ObjectMapper objectMapper;
+
+    //Mapea nombres a ID de conversaciones para que se vea mas bonito
+    private static Map<String, Integer> conversaciones;
 
     //constructor
     public GUI(LoginAuth loginInfo) {
@@ -65,7 +68,7 @@ public class GUI extends JFrame implements Runnable {
 
         // Conversaciones
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"ID", "Nombre"});
+        modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
         tablaConversaciones = new JTable(modeloConversaciones){
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -87,7 +90,7 @@ public class GUI extends JFrame implements Runnable {
         panelMensaje.add(txtMensaje, BorderLayout.CENTER);
         panelMensaje.add(btnEnviar, BorderLayout.EAST);
         JButton btnNuevoChat = new JButton("Nuevo Chat");
-        btnNuevoChat.addActionListener(e -> crearNuevoChat());
+        btnNuevoChat.addActionListener(e -> crearNuevoChatIndividual());
 
         JPanel panelDerecho = new JPanel(new BorderLayout());
         panelDerecho.add(btnNuevoChat, BorderLayout.NORTH);
@@ -112,6 +115,8 @@ public class GUI extends JFrame implements Runnable {
             System.out.println(jsonResponse);
             Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
 
+            conversaciones = new HashMap<>();
+
             if (respuesta instanceof ReturnConversaciones returnConversaciones) {
                 modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
                 for (DatosConversacion conv : returnConversaciones.getDatosConversacion()) {
@@ -124,9 +129,9 @@ public class GUI extends JFrame implements Runnable {
                                 break;
                             }
                         }
+                        conversaciones.put(destinatario, conv.getId());
 
                         modeloConversaciones.addRow(new Object[]{
-                                conv.getId(),
                                 destinatario
                         });
                     }
@@ -137,13 +142,19 @@ public class GUI extends JFrame implements Runnable {
         } catch (Exception e) {
             System.out.println("Error al obtener conversación: " + e.getMessage());
         }
+
+        for(String p: conversaciones.keySet()) {
+            System.out.println(p + ", " + conversaciones.get(p));
+        }
     }
 
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        int conversationId = Integer.parseInt(modeloConversaciones.getValueAt(fila, 0).toString());
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+
+        int conversationId = conversaciones.get(destinatario);
 
 
         // Antes de crear un nuevo hilo, detenemos el anterior si sigue vivo
@@ -202,7 +213,8 @@ public class GUI extends JFrame implements Runnable {
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        int conversationId = Integer.parseInt(modeloConversaciones.getValueAt(fila, 0).toString());
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+        int conversationId = conversaciones.get(destinatario);
 
         try{
             String jsonRequest = objectMapper.writeValueAsString(new EnviarMensaje(txtMensaje.getText(),conversationId));
@@ -227,16 +239,21 @@ public class GUI extends JFrame implements Runnable {
 
 
     //clase dedicada para la creacion de chats 1v1
-    private void crearNuevoChat() {
+    private void crearNuevoChatIndividual() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 
-        if (telefonoDestino == null || telefonoDestino.isBlank() || telefonoDestino.equals(loginInfo.getTelefono())) {
-            JOptionPane.showMessageDialog(this, "Número inválido o es tu propio número.");
+        if (telefonoDestino == null || telefonoDestino.isBlank()) {
+            JOptionPane.showMessageDialog(this, "Ingresa un teléfono");
+            return;
+        }
+
+        if(telefonoDestino.equals(loginInfo.getTelefono())){
+            JOptionPane.showMessageDialog(this, "No puedes añadir tu propio número.");
             return;
         }
 
         try {
-            CrearConversacionIndividual solicitud = new CrearConversacionIndividual(loginInfo.getTelefono(), telefonoDestino);
+            CrearConversacionIndividual solicitud = new CrearConversacionIndividual("DM", telefonoDestino);
             String jsonRequest = objectMapper.writeValueAsString(solicitud);
             System.out.println(jsonRequest);
             salida.println(jsonRequest);
@@ -247,12 +264,14 @@ public class GUI extends JFrame implements Runnable {
 
             if (respuesta instanceof ReturnConvID convID) {
                 // Mostrar mensaje de éxito
-                JOptionPane.showMessageDialog(this, "¡Conversación creada!");
+                JOptionPane.showMessageDialog(this, "¡Conversación con " + convID.getDestinatario() +" creada!");
+
+                //Añade conversacion al mapa
+                conversaciones.put(convID.getDestinatario(), convID.getConvID());
 
                 // Agregar manualmente la conversación a la tabla
                 modeloConversaciones.addRow(new Object[]{
-                        convID.getConvID(),
-                        telefonoDestino
+                        convID.getDestinatario()
                 });
 
             } else if (respuesta instanceof Aviso aviso) {
