@@ -285,7 +285,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     checkStmt.setInt(2, idDestino);
                     ResultSet rs = checkStmt.executeQuery();
                     if (rs.next()) {
-                        enviarRespuesta(new ReturnConvID(rs.getInt("id")));
+                        enviarRespuesta(new Aviso("error", "Este teléfono ya fue añadido a tus conversaciones"));
                         return;
                     }
                 }
@@ -301,6 +301,8 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     if (claves.next()) {
                         int nuevoIdConversacion = claves.getInt(1);
 
+                        String destinatario = getNombreUsu(request.getTelefonoDestino());
+
                         // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
                         String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
                         try (PreparedStatement insertStmt = conn.prepareStatement(insertUsuarios)) {
@@ -310,7 +312,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                             insertStmt.setInt(4, idDestino);
                             insertStmt.executeUpdate();
 
-                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion));
+                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario));
                         }
                     }
                 }
