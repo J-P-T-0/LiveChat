@@ -223,7 +223,7 @@ public class GUI extends JFrame implements Runnable {
                 // Agregar manualmente la conversación a la tabla
                 modeloConversaciones.addRow(new Object[]{
                         convID.getConvID(),
-                        telefonoDestino // Puedes reemplazar por nombre si lo consigues
+                        telefonoDestino
                 });
 
             } else if (respuesta instanceof Aviso aviso) {
