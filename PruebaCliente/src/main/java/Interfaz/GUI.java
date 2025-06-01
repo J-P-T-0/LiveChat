@@ -116,34 +116,11 @@ public class GUI extends JFrame implements Runnable {
                 modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
                 for (DatosConversacion conv : returnConversaciones.getDatosConversacion()) {
                     // Validación: no mostrar conversación contigo mismo
-
                     if (!conv.getNombre().equals(loginInfo.getTelefono())) {
                         modeloConversaciones.addRow(new Object[]{
                                 conv.getId(),
                                 conv.getNombre()
                         });
-                    }else{ //Obtener nombre del destinatario
-                        String destRequest = objectMapper.writeValueAsString(new GetMensajes(conv.getId()));
-                        salida.println(destRequest);
-
-                        String destResponse = entrada.readLine();
-
-                        Respuesta destAnswer = objectMapper.readValue(destResponse, Respuesta.class);
-
-                        if (destAnswer instanceof ReturnMensajes returnMensajes) {
-                            for (DatosMensajes m : returnMensajes.getDatosMensajes()) {
-                                if (!m.getNombre().equals(loginInfo.getNombre())) {
-                                    modeloConversaciones.addRow(new Object[]{
-                                            conv.getId(),
-                                            m.getNombre()
-                                    });
-                                    break;
-                                }
-
-                            }
-                        } else if (destAnswer instanceof Aviso aviso) {
-                            SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
-                        }
                     }
                 }
             } else if (respuesta instanceof Aviso aviso) {
@@ -240,28 +217,6 @@ public class GUI extends JFrame implements Runnable {
         cargarMensajes();
     }
 
-    private void enviarMensaje(int conversationId, String message) {
-        //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        try{
-            String jsonRequest = objectMapper.writeValueAsString(new EnviarMensaje(message,conversationId));
-            System.out.println(jsonRequest);
-            salida.println(jsonRequest);
-
-            String jsonResponse = entrada.readLine();
-            System.out.println(jsonResponse);
-            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-            if(respuesta instanceof ReturnMensajes){
-                cargarMensajes();
-            }else if (respuesta instanceof Aviso){
-                Aviso aviso = (Aviso) respuesta;
-                mostrarError(aviso.getDescripcion());
-            }
-        }catch (Exception e){
-            System.out.println("Error al enviar mensaje: " + e.getMessage());
-        }
-        txtMensaje.setText("");
-        cargarMensajes();
-    }
 
     //clase dedicada para la creacion de chats 1v1
     private void crearNuevoChat() {
@@ -286,15 +241,11 @@ public class GUI extends JFrame implements Runnable {
                 // Mostrar mensaje de éxito
                 JOptionPane.showMessageDialog(this, "¡Conversación creada!");
 
-
-
                 // Agregar manualmente la conversación a la tabla
                 modeloConversaciones.addRow(new Object[]{
                         convID.getConvID(),
                         telefonoDestino
                 });
-                txtMensaje.setText("Hola!");
-                enviarMensaje();
 
             } else if (respuesta instanceof Aviso aviso) {
                 JOptionPane.showMessageDialog(this, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.ERROR_MESSAGE);
