@@ -1,5 +1,7 @@
 package Interfaz;
 
+import Main.ConexionServer;
+import Main.LoginC;
 import Requests.EnviarMensaje;
 import Requests.GetConversaciones;
 import Requests.GetMensajes;
@@ -29,22 +31,26 @@ public class GUI extends JFrame implements Runnable {
     private JTextField txtMensaje;
 
     //Cuestiones del server
-    private Socket socket;
-    private PrintWriter salida;
-    private BufferedReader entrada;
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private static PrintWriter salida;
+    private static BufferedReader entrada;
+    private static ObjectMapper objectMapper;
 
     //constructor
-    public GUI(LoginAuth loginInfo, Socket socket) {
-        this.socket = socket;
-        try {
-            salida = new PrintWriter(socket.getOutputStream(), true);
-            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        } catch (Exception e) {
-            mostrarError("Error al conectar con el servidor.");
-        }
+    public GUI() {
+        conectarAServidor();
         initComponents();
         cargarConversaciones();
+    }
+
+    public static void conectarAServidor() {
+        ConexionServer conectarAServidor = LoginC.conexionServer;
+        try {
+            entrada= conectarAServidor.getEntrada();
+            salida= conectarAServidor.getSalida();
+            objectMapper= conectarAServidor.getObjectMapper();
+        } catch (Exception e) {
+            GUI.mostrarError("Error al conectar con el servidor.");
+        }
     }
 
     //GUI
@@ -78,10 +84,6 @@ public class GUI extends JFrame implements Runnable {
 
         add(splitPane, BorderLayout.CENTER);
         add(panelMensaje, BorderLayout.SOUTH);
-    }
-
-    private void mostrarError(String msg) {
-        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
     //funciones ya del chat
@@ -192,8 +194,13 @@ public class GUI extends JFrame implements Runnable {
         cargarMensajes();
     }
 
+    public static void mostrarError(String msg) {
+        JOptionPane.showMessageDialog(null, msg, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
     @Override
     public void run() {
         cargarMensajes();
     }
+
 }
