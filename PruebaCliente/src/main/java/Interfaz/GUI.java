@@ -117,7 +117,7 @@ public class GUI extends JFrame implements Runnable {
                 for (DatosConversacion conv : returnConversaciones.getDatosConversacion()) {
                     String destinatario = " ";
 
-                    if (conv.isEsGrupo()) {
+                    if (!conv.isEsGrupo()) {
                         for(String p: conv.getParticipantes()) {
                             if(!p.equals(loginInfo.getNombre())) {
                                 destinatario = p;
