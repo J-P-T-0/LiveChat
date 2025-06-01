@@ -237,6 +237,30 @@ public class GUI extends JFrame implements Runnable {
         txtMensaje.setText("");
         cargarMensajes();
     }
+
+    private void enviarMensaje(int conversationId, String message) {
+        //se obtiene el valor de la fila seleccionada como el indice de la conversacion
+        try{
+            String jsonRequest = objectMapper.writeValueAsString(new EnviarMensaje(message,conversationId));
+            System.out.println(jsonRequest);
+            salida.println(jsonRequest);
+
+            String jsonResponse = entrada.readLine();
+            System.out.println(jsonResponse);
+            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
+            if(respuesta instanceof ReturnMensajes){
+                cargarMensajes();
+            }else if (respuesta instanceof Aviso){
+                Aviso aviso = (Aviso) respuesta;
+                mostrarError(aviso.getDescripcion());
+            }
+        }catch (Exception e){
+            System.out.println("Error al enviar mensaje: " + e.getMessage());
+        }
+        txtMensaje.setText("");
+        cargarMensajes();
+    }
+
     //clase dedicada para la creacion de chats 1v1
     private void crearNuevoChat() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
