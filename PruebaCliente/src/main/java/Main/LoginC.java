@@ -44,6 +44,7 @@ public class LoginC extends JFrame {
         setLocationRelativeTo(null);
         setSize(400, 250);
         setLayout(new GridLayout(4,2));
+        setResizable(false);
 
         add(new JLabel("Telefono"));
         txtTelefono = new JTextField();
