@@ -55,6 +55,8 @@ public class GUI extends JFrame implements Runnable {
         setSize(800, 600);
         setLayout(new BorderLayout());
 
+        setTitle("Conversaciones de " + loginInfo.getNombre());
+
         // Conversaciones
         modeloConversaciones = new DefaultTableModel();
         modeloConversaciones.setColumnIdentifiers(new String[]{"ID", "Nombre"});
@@ -110,13 +112,36 @@ public class GUI extends JFrame implements Runnable {
 
             if (respuesta instanceof ReturnConversaciones returnConversaciones) {
                 modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
-                for (DatosConversacion e : returnConversaciones.getDatosConversacion()) {
+                for (DatosConversacion conv : returnConversaciones.getDatosConversacion()) {
                     // Validación: no mostrar conversación contigo mismo
-                    if (!e.getNombre().equals(loginInfo.getTelefono())) {
+
+                    if (!conv.getNombre().equals(loginInfo.getTelefono())) {
                         modeloConversaciones.addRow(new Object[]{
-                                e.getId(),
-                                e.getNombre()
+                                conv.getId(),
+                                conv.getNombre()
                         });
+                    }else{ //Obtener nombre del destinatario
+                        String destRequest = objectMapper.writeValueAsString(new GetMensajes(conv.getId()));
+                        salida.println(destRequest);
+
+                        String destResponse = entrada.readLine();
+
+                        Respuesta destAnswer = objectMapper.readValue(destResponse, Respuesta.class);
+
+                        if (destAnswer instanceof ReturnMensajes returnMensajes) {
+                            for (DatosMensajes m : returnMensajes.getDatosMensajes()) {
+                                if (!m.getNombre().equals(loginInfo.getNombre())) {
+                                    modeloConversaciones.addRow(new Object[]{
+                                            conv.getId(),
+                                            m.getNombre()
+                                    });
+                                    break;
+                                }
+
+                            }
+                        } else if (destAnswer instanceof Aviso aviso) {
+                            SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
+                        }
                     }
                 }
             } else if (respuesta instanceof Aviso aviso) {
@@ -149,34 +174,31 @@ public class GUI extends JFrame implements Runnable {
 
                     String jsonResponse = entrada.readLine();
 
-                    if (jsonResponse.equals(jsonPrevResponse)) {
-                        //Thread.sleep(500);
-                        continue; // No hay nada nuevo, así que seguimos
+                    // No hay nada nuevo, así que seguimos
+
+                    if (!jsonResponse.equals(jsonPrevResponse)) {
+                        jsonPrevResponse = jsonResponse; // Guardamos la última respuesta
+
+                        Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
+
+                        if (respuesta instanceof ReturnMensajes returnMensajes) {
+                            SwingUtilities.invokeLater(() -> {
+                                modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
+                                for (DatosMensajes e : returnMensajes.getDatosMensajes()) {
+                                    modeloMensajes.addRow(new Object[]{
+                                            e.getNombre(),
+                                            e.getMensaje(),
+                                            e.getFecha()
+                                    });
+                                }
+                            });
+                        } else if (respuesta instanceof Aviso aviso) {
+                            SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
+                        }
                     }
 
-                    jsonPrevResponse = jsonResponse; // Guardamos la última respuesta
-
-                    Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-
-                    if (respuesta instanceof ReturnMensajes returnMensajes) {
-                        SwingUtilities.invokeLater(() -> {
-                            modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
-                            for (DatosMensajes e : returnMensajes.getDatosMensajes()) {
-                                modeloMensajes.addRow(new Object[]{
-                                        e.getNombre(),
-                                        e.getMensaje(),
-                                        e.getFecha()
-                                });
-                            }
-                        });
-                    } else if (respuesta instanceof Aviso aviso) {
-                        SwingUtilities.invokeLater(() -> mostrarError(aviso.getDescripcion()));
-                    }
-
-                    //Thread.sleep(500); // Esperamos un poquito antes de volver a pedir
                 }
             } catch (Exception e) {
-                e.printStackTrace();
                 System.out.println("Error en hilo de mensajes: " + e.getMessage());
             }
         });
@@ -187,6 +209,7 @@ public class GUI extends JFrame implements Runnable {
 
     private void enviarMensaje() {
         int fila = tablaConversaciones.getSelectedRow();
+
         if (fila == -1 || txtMensaje.getText().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Seleccione una conversación y escriba un mensaje");
             return;
@@ -225,11 +248,13 @@ public class GUI extends JFrame implements Runnable {
 
         try {
             CrearConversacionIndividual solicitud = new CrearConversacionIndividual(loginInfo.getTelefono(), telefonoDestino);
-            String json = objectMapper.writeValueAsString(solicitud);
-            salida.println(json);
+            String jsonRequest = objectMapper.writeValueAsString(solicitud);
+            System.out.println(jsonRequest);
+            salida.println(jsonRequest);
 
-            String respuestaJson = entrada.readLine();
-            Respuesta respuesta = objectMapper.readValue(respuestaJson, Respuesta.class);
+            String jsonResponse = entrada.readLine();
+            System.out.println(jsonResponse);
+            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
 
             if (respuesta instanceof ReturnConvID convID) {
                 // Mostrar mensaje de éxito
@@ -240,6 +265,8 @@ public class GUI extends JFrame implements Runnable {
                         convID.getConvID(),
                         telefonoDestino
                 });
+                txtMensaje.setText("Hola!");
+                enviarMensaje();
 
             } else if (respuesta instanceof Aviso aviso) {
                 JOptionPane.showMessageDialog(this, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.ERROR_MESSAGE);
