@@ -1,5 +1,6 @@
 package Interfaz;
 
+import Requests.CrearConversacionIndividual;
 import Requests.EnviarMensaje;
 import Requests.GetConversaciones;
 import Requests.GetMensajes;
@@ -20,6 +21,7 @@ import java.sql.SQLException;
 
 public class GUI extends JFrame implements Runnable {
     //Tabla de conversaciones
+    private LoginAuth loginInfo;
     private JTable tablaConversaciones;
     private DefaultTableModel modeloConversaciones;
     //tabla de mensajes
@@ -37,6 +39,7 @@ public class GUI extends JFrame implements Runnable {
     //constructor
     public GUI(LoginAuth loginInfo, Socket socket) {
         this.socket = socket;
+        this.loginInfo = loginInfo;
         try {
             salida = new PrintWriter(socket.getOutputStream(), true);
             entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -70,7 +73,12 @@ public class GUI extends JFrame implements Runnable {
         JButton btnEnviar = new JButton("Enviar");
         panelMensaje.add(txtMensaje, BorderLayout.CENTER);
         panelMensaje.add(btnEnviar, BorderLayout.EAST);
+        JButton btnNuevoChat = new JButton("Nuevo Chat");
+        btnNuevoChat.addActionListener(e -> crearNuevoChat());
 
+        JPanel panelDerecho = new JPanel(new BorderLayout());
+        panelDerecho.add(btnNuevoChat, BorderLayout.NORTH);
+        add(panelDerecho, BorderLayout.EAST);
         btnEnviar.addActionListener(e -> enviarMensaje());
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tablaConversaciones), new JScrollPane(tablaMensajes));// como en el whats app real!
@@ -191,7 +199,42 @@ public class GUI extends JFrame implements Runnable {
         txtMensaje.setText("");
         cargarMensajes();
     }
+    //clase dedicada para la creacion de chats 1v1
+    private void crearNuevoChat() {
+        String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 
+        if (telefonoDestino == null || telefonoDestino.isBlank() || telefonoDestino.equals(loginInfo.getTelefono())) {
+            JOptionPane.showMessageDialog(this, "Número inválido o es tu propio número.");
+            return;
+        }
+
+        try {
+            CrearConversacionIndividual solicitud = new CrearConversacionIndividual(loginInfo.getTelefono(), telefonoDestino);
+            String json = objectMapper.writeValueAsString(solicitud);
+            salida.println(json);
+
+            String respuestaJson = entrada.readLine();
+            Respuesta respuesta = objectMapper.readValue(respuestaJson, Respuesta.class);
+
+            if (respuesta instanceof ReturnConvID convID) {
+                // Mostrar mensaje de éxito
+                JOptionPane.showMessageDialog(this, "¡Conversación creada!");
+
+                // Agregar manualmente la conversación a la tabla
+                modeloConversaciones.addRow(new Object[]{
+                        convID.getConvID(),
+                        telefonoDestino // Puedes reemplazar por nombre si lo consigues
+                });
+
+            } else if (respuesta instanceof Aviso aviso) {
+                JOptionPane.showMessageDialog(this, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.ERROR_MESSAGE);
+            }
+
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Error al crear la conversación: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
     @Override
     public void run() {
         cargarMensajes();
