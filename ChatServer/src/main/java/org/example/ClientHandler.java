@@ -27,8 +27,7 @@ public class ClientHandler extends Thread {
     private poolConexiones poolConexiones;
     // ID del usuario autenticado, null si no esta autenticado
     private Integer usuarioActualID = null;
-    // ID de la primera conversación en la que aparece el usuario
-    private Integer primeraConversacion = null;
+
     // Es la clase principa de JSon que transforma objetos de java en JSON y viceversa
     private final ObjectMapper traductorJson = new ObjectMapper();
 
@@ -173,13 +172,9 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 LIMIT 0,50
                 """;
         try{
-            //Recuperar la primera conversación
-            this.primeraConversacion = primeraConversacionUsuario(this.usuarioActualID)-1;
-            System.out.println(this.primeraConversacion);
             //Ejecutar la query
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioActualID);
-            //stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosConversacion> datosConv = new ArrayList<>();
@@ -215,7 +210,6 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         try{
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, request.getConversacionId());
-            //stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
