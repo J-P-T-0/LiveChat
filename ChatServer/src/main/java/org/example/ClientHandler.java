@@ -170,15 +170,16 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
-                LIMIT ?,50
+                LIMIT 0,50
                 """;
         try{
             //Recuperar la primera conversación
             this.primeraConversacion = primeraConversacionUsuario(this.usuarioActualID)-1;
+            System.out.println(this.primeraConversacion);
             //Ejecutar la query
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioActualID);
-            stmt.setInt(2, primeraConversacion);
+            //stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosConversacion> datosConv = new ArrayList<>();
@@ -209,12 +210,12 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 JOIN usuarios u ON m.remitente_id = u.id
                 WHERE m.conversacion_id = ?
                 ORDER BY m.fecha_envio
-                LIMIT ?,50
+                LIMIT 0,50
                 """;
         try{
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, request.getConversacionId());
-            stmt.setInt(2, primeraConversacion);
+            //stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
@@ -431,12 +432,14 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
     private int primeraConversacionUsuario(int usuarioId) throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
-        String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, usuarioId);
-        ResultSet rs = stmt.executeQuery();
-        rs.next();
-        return rs.getInt("id");
+            String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, usuarioId);
+            ResultSet rs = stmt.executeQuery();
+            if(rs.next())
+                return rs.getInt("id");
+            else
+                return 0;
         }
         finally {
             if (conn != null){
