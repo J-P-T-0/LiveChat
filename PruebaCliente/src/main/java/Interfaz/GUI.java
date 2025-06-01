@@ -40,7 +40,8 @@ public class GUI extends JFrame implements Runnable {
     private static ObjectMapper objectMapper;
 
     //constructor
-    public GUI() {
+    public GUI(LoginAuth loginInfo) {
+        this.loginInfo = loginInfo;
         conectarAServidor();
         initComponents();
         cargarConversaciones();

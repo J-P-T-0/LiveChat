@@ -93,8 +93,7 @@ public class LoginC extends JFrame {
             if(respuestaObj instanceof LoginAuth){
                 LoginAuth loginAuth = (LoginAuth) respuestaObj;
                 this.dispose();
-                //new ChatUi(loginAuth, socket).setVisible(true);
-                new GUI().setVisible(true);
+                new GUI(loginAuth).setVisible(true);
             }else if (respuestaObj instanceof Aviso){
                 Aviso aviso = (Aviso) respuestaObj;
                 JOptionPane.showMessageDialog(this,aviso.getDescripcion(),aviso.getEstado(),JOptionPane.ERROR_MESSAGE);
