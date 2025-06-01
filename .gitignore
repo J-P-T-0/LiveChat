@@ -71,7 +71,6 @@ cmake-build-*/
 
 # Mongo Explorer plugin
 .idea/**/mongoSettings.xml
-.idea/
 
 # File-based project format
 *.iws
@@ -136,4 +135,8 @@ modules.xml
 # Azure Toolkit for IntelliJ plugin
 # https://plugins.jetbrains.com/plugin/8053-azure-toolkit-for-intellij
 .idea/**/azureSettings.xml
+/.idea/.gitignore
+/.idea/encodings.xml
+/.idea/vcs.xml
+/.idea/dataSources.xml
 /.idea/
