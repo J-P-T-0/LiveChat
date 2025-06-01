@@ -66,6 +66,10 @@ public class Registro extends JFrame {
         add(panel);
     }
 
+    private boolean validarTelefono(String telefono) {
+        return (!telefono.isBlank() && telefono.length()==10 && telefono.matches("^[0-9]+$"));
+    }
+
     private void registrar(){
         String telefono = txtTelefono.getText().trim();
         String contrasena = new String(txtContrasena.getPassword());
@@ -73,6 +77,11 @@ public class Registro extends JFrame {
 
         if (telefono.isEmpty() || contrasena.isEmpty() || nombre.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Completa todos los campos.");
+            return;
+        }
+
+        if(!(validarTelefono(telefono))){
+            JOptionPane.showMessageDialog(this, "Error tel.");
             return;
         }
 
