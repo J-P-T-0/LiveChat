@@ -29,7 +29,8 @@ public class LoginC extends JFrame {
 
     private void conectarAServidor() {
         try {
-            conexionServer= new ConexionServer("147.185.221.28", 37296);
+            //conexionServer = new ConexionServer("147.185.221.28", 37296);
+            conexionServer = new ConexionServer("127.0.0.1", 1234);
             this.entrada= conexionServer.getEntrada();
             this.salida= conexionServer.getSalida();
             this.objectMapper= conexionServer.getObjectMapper();

@@ -115,11 +115,19 @@ public class GUI extends JFrame implements Runnable {
             if (respuesta instanceof ReturnConversaciones returnConversaciones) {
                 modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
                 for (DatosConversacion conv : returnConversaciones.getDatosConversacion()) {
-                    // Validación: no mostrar conversación contigo mismo
-                    if (!conv.getNombre().equals(loginInfo.getTelefono())) {
+                    String destinatario = " ";
+
+                    if (conv.isEsGrupo()) {
+                        for(String p: conv.getParticipantes()) {
+                            if(!p.equals(loginInfo.getNombre())) {
+                                destinatario = p;
+                                break;
+                            }
+                        }
+
                         modeloConversaciones.addRow(new Object[]{
                                 conv.getId(),
-                                conv.getNombre()
+                                destinatario
                         });
                     }
                 }
