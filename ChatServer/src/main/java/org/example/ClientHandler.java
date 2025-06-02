@@ -240,6 +240,38 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
 
     }
 
+    private void getMensajes(GetMensajes request, String telDestinatario) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = """
+                SELECT u.nombre, m.mensaje, m.fecha_envio
+                FROM mensajes m
+                JOIN usuarios u ON m.remitente_id = u.id
+                WHERE m.conversacion_id = ?
+                ORDER BY m.fecha_envio
+                LIMIT 0,50
+                """;
+            try{
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, request.getConversacionId());
+                ResultSet rs = stmt.executeQuery();
+
+                ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
+                while (rs.next()) {
+                    datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
+                }
+                enviarRespuesta(new ReturnMensajes(datosMensajes), writers.get(telDestinatario));
+            }catch(Exception e){
+                enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()), writers.get(telDestinatario));
+            }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+
+    }
+
     private void enviarMensaje(EnviarMensaje request) throws JsonProcessingException, SQLException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
@@ -251,7 +283,17 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 stmt.setInt(2, usuarioActualID);
                 stmt.setString(3, request.getMensaje());
                 stmt.executeUpdate();
-                getMensajes(new GetMensajes(request.getConversacionID()));
+
+                getParticipantes(request.getConversacionID());
+
+                for(String p : getParticipantes(request.getConversacionID())){
+                    String tel = getTelFromNombre(p);
+                    //Se asegura de que el destinatario esté en linea para evitar errores
+                    if(writers.containsKey(tel)) {
+                        getMensajes(new GetMensajes(request.getConversacionID()), tel);
+                    }
+                }
+
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
@@ -670,6 +712,28 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             String sql = "SELECT telefono FROM usuarios WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, id.toString());
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getString("telefono");
+                }
+            } catch (SQLException e) {
+                enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
+                throw e;
+            }
+            return null;
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    private String getTelFromNombre(String nombre) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = "SELECT telefono FROM usuarios WHERE nombre = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, nombre);
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
                     return rs.getString("telefono");
