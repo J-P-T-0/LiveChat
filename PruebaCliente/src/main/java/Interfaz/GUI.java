@@ -15,7 +15,7 @@ import static Main.CreateRequests.*;
 public class GUI extends JFrame {
     //Tabla de conversaciones
     private static LoginAuth loginInfo;
-    private JTable tablaConversaciones;
+    private static JTable tablaConversaciones;
     private static DefaultTableModel modeloConversaciones;
 
     //Modelo para modificar la tabla de mensajes
@@ -120,6 +120,7 @@ public class GUI extends JFrame {
                         destinatario
                 });
             }
+            //Aqui ya con un else nomas y cargas el nomber del grupo
         }
 
     }
@@ -137,16 +138,25 @@ public class GUI extends JFrame {
     }
 
     public static void RefreshMensajes(ReturnMensajes respuesta) {
-        SwingUtilities.invokeLater(() -> {
-            modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
-            for (DatosMensajes e : respuesta.getDatosMensajes()) {
-                modeloMensajes.addRow(new Object[]{
-                        e.getNombre(),
-                        e.getMensaje(),
-                        e.getFecha()
-                });
-            }
-        });
+        int fila = tablaConversaciones.getSelectedRow();
+        if (fila == -1) return;
+
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+
+        int conversationId = conversaciones.get(destinatario);
+        if(respuesta.getConvID() == conversationId) {
+            SwingUtilities.invokeLater(() -> {
+                modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
+                for (DatosMensajes e : respuesta.getDatosMensajes()) {
+                    modeloMensajes.addRow(new Object[]{
+                            e.getNombre(),
+                            e.getMensaje(),
+                            e.getFecha()
+                    });
+                }
+            });
+        }
+
     }
 
 

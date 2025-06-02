@@ -52,6 +52,7 @@ public class ClientHandler extends Thread {
 
             } catch (IOException e) {
                 System.out.println("Entrada/salida no disponible: " + e.getMessage());
+                return;
             }
 
             // Confirmar conexion
@@ -65,6 +66,8 @@ public class ClientHandler extends Thread {
 
                     //Almacena el request pedido de lado de cliente
                     Request newRequest = traductorJson.readValue(linea, Request.class);
+
+                    System.out.println("traductor funciona");
 
                     // Verificación de autenticación
                     if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
@@ -92,14 +95,12 @@ public class ClientHandler extends Thread {
 
                         case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
 
-                        case Close closeConn -> {
-                            closeConn(closeConn);
-                            return;
-                        }
+                        case Close closeConn -> closeConn(closeConn);
 
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
+                    System.err.println(e.getMessage());
                     enviarRespuesta(new Aviso("error", "Error al procesar comando: " + e.getMessage()));
                 }
             }
@@ -228,7 +229,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             while (rs.next()) {
                 datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
             }
-            enviarRespuesta(new ReturnMensajes(datosMensajes));
+            enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()));
         }catch(Exception e){
             enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()));
         }
@@ -260,7 +261,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 while (rs.next()) {
                     datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
                 }
-                enviarRespuesta(new ReturnMensajes(datosMensajes), writers.get(telDestinatario));
+                enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()), writers.get(telDestinatario));
             }catch(Exception e){
                 enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()), writers.get(telDestinatario));
             }
@@ -308,7 +309,6 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 String tel = getTelFromNombre(p);
                 //Se asegura de que el destinatario esté en linea para evitar errores
                 if(writers.containsKey(tel)) {
-                    System.out.println("help");
                     getMensajes(new GetMensajes(request.getConversacionID()), tel);
                 }
             }
@@ -537,6 +537,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
 
     //metodo para mandar respuesta a usuario especifico
     private void enviarRespuesta(Respuesta respuesta, PrintWriter output) throws JsonProcessingException {
+        System.out.println("Respuesta a otro");
         String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
         output.println(jsonRespuesta);
     }

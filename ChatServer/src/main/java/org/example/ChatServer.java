@@ -31,12 +31,20 @@ public class ChatServer implements AutoCloseable {
             System.out.println("Server escuchando en puerto " + puerto);
 
             while (ejecutando) {
-                Socket socketCliente = servidor.accept();
-                System.out.println("Cliente conectado");
+                try {
+                    Socket socketCliente = servidor.accept();
+                    System.out.println("Cliente conectado: " + socketCliente);
 
-                ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
-                manejador.start();
+                    ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
+                    manejador.start();
+                } catch (IOException e) {
+                    if (ejecutando) {
+                        System.err.println("Error al aceptar cliente: " + e.getMessage());
+                    }
+                }
             }
+
+            System.out.println("Servidor detenido");
         } catch (IOException e) {
             System.err.println("Error al iniciar el servidor: " + e.getMessage());
         }

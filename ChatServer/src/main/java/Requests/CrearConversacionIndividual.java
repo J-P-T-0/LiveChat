@@ -9,7 +9,7 @@ public class CrearConversacionIndividual extends Request {
 
     public CrearConversacionIndividual(@JsonProperty("nombreConv") String nombreConv,
                                        @JsonProperty("telDestino") String telefonoDestino,
-                                       @JsonProperty("Remitente") String Remitente) {
+                                       @JsonProperty("remitente") String Remitente) {
         super("CREAR_CONV_PRIV");
         this.nombreConv = nombreConv;
         this.telefonoDestino = telefonoDestino;
