@@ -284,25 +284,33 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 stmt.setString(3, request.getMensaje());
                 stmt.executeUpdate();
 
-                getParticipantes(request.getConversacionID());
 
-                for(String p : getParticipantes(request.getConversacionID())){
-                    String tel = getTelFromNombre(p);
-                    //Se asegura de que el destinatario esté en linea para evitar errores
-                    if(writers.containsKey(tel)) {
-                        getMensajes(new GetMensajes(request.getConversacionID()), tel);
-                    }
-                }
 
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
                 enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
-        }
+            }
         } finally {
             conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
+            }
+
+            ArrayList<String> participantes = getParticipantes(request.getConversacionID());
+
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+
+            for(String p : participantes){
+                System.out.println(p);
+                String tel = getTelFromNombre(p);
+                //Se asegura de que el destinatario esté en linea para evitar errores
+                if(writers.containsKey(tel)) {
+                    System.out.println("help");
+                    getMensajes(new GetMensajes(request.getConversacionID()), tel);
+                }
             }
         }
     }
