@@ -83,22 +83,35 @@ public class ChatLogin extends JFrame {
     private void startLogin(){
         try{
             String telefono = txtTelefono.getText().trim();
-            String password = txtPassword.getText().trim();
+            String password = new String(txtPassword.getPassword());
 
-            if(!(validarPassword(password) && validarTelefono(telefono))){
-                JOptionPane.showMessageDialog(this,"Error al ingresar el teléfono o la contraseña","Error",JOptionPane.ERROR_MESSAGE);
+            if(!validarTelefono(telefono)){
+                JOptionPane.showMessageDialog(this,"El teléfono debe tener 10 caracteres","Teléfono Inválido",JOptionPane.WARNING_MESSAGE);
                 return;
             }
+
+            if(!validarPassword(password)){
+                JOptionPane.showMessageDialog(this,"Ingrese una contraseña","Contraseña Inválida",JOptionPane.ERROR_MESSAGE);
+            }
+
             RequestLogin(telefono, password);
 
         }catch(Exception ex){
-            System.out.println("Hubo un problema con: "+ex.getMessage());
+            System.out.println("Hubo un problema con: " + ex.getMessage());
         }
     }
 
     public static void confirmLogin(LoginAuth loginAuth){
         frame.dispose();
         new GUI(loginAuth).setVisible(true);
+    }
+
+    public static void warningRegistro(Aviso aviso){
+        if(aviso.getEstado().equals("éxito")){
+            JOptionPane.showMessageDialog(frame, aviso.getDescripcion(), "Error de Autenticación", JOptionPane.WARNING_MESSAGE);
+        }else{
+            JOptionPane.showMessageDialog(frame, aviso.getDescripcion(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     public static void main(String[] args) {

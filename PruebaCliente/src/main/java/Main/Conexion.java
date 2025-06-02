@@ -55,6 +55,11 @@ public class Conexion implements Runnable {
                         continue;
                     }
 
+                    if(lastRequest.getComando().equals("LOGIN") && Response instanceof Aviso aviso) {
+                        ChatLogin.warningRegistro(aviso);
+                        continue;
+                    }
+
                     switch (Response) {
                         case LoginAuth R -> confirmLogin(R);
 
@@ -78,6 +83,7 @@ public class Conexion implements Runnable {
             }
         } catch (Exception e) {
             System.err.println("Error con cliente: " + e.getMessage());
+            System.exit(1);
         }
     }
 }
