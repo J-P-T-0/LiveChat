@@ -15,6 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
+import static org.example.ChatServer.readers;
+import static org.example.ChatServer.writers;
+
 // Clase que maneja cada conexion de cliente en un hilo separado
 public class ClientHandler extends Thread {
     // Socket para comunicación con el cliente
@@ -46,6 +49,7 @@ public class ClientHandler extends Thread {
             try {
                 entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 salida = new PrintWriter(socket.getOutputStream(), true);
+
             } catch (IOException e) {
                 System.out.println("Entrada/salida no disponible: " + e.getMessage());
             }
@@ -63,7 +67,7 @@ public class ClientHandler extends Thread {
                     Request newRequest = traductorJson.readValue(linea, Request.class);
 
                     // Verificación de autenticación
-                    if (!(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
+                    if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
                             && usuarioActualID == null) {
                         enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
                         continue;
@@ -88,6 +92,11 @@ public class ClientHandler extends Thread {
 
                         case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
 
+                        case Close closeConn -> {
+                            closeConn(closeConn);
+                            return;
+                        }
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
@@ -102,6 +111,7 @@ public class ClientHandler extends Thread {
             } catch (IOException e) {
                 System.err.println("Error al cerrar el socket: " + e.getMessage());
             }
+            System.out.println("Cliente finalizado");
         }
     }
 
@@ -111,6 +121,8 @@ public class ClientHandler extends Thread {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
                 String nombre = getNombreUsu(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
+                readers.put(request.getTelefono(), entrada);
+                writers.put(request.getTelefono(), salida);
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
@@ -296,6 +308,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     if (claves.next()) {
                         int nuevoIdConversacion = claves.getInt(1);
 
+                        String remitente = request.getRemitente();
                         String destinatario = getNombreUsu(request.getTelefonoDestino());
 
                         // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
@@ -308,6 +321,11 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                             insertStmt.executeUpdate();
 
                             enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario));
+
+                            //Se asegura de que el destinatario esté en linea para evitar errores
+                            if(writers.containsKey(request.getTelefonoDestino())) {
+                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente), writers.get(request.getTelefonoDestino()));
+                            }
                         }
                     }
                 }
@@ -417,30 +435,31 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
 
+    private void closeConn(Close closeConn) {
+        try {
+            enviarRespuesta(new CloseClient());
+            writers.remove(closeConn.getTelefono());
+            readers.remove(closeConn.getTelefono());
+            salida.close();
+            entrada.close();
+            socket.close();
+        }catch (Exception e) {
+            System.err.println("Error al cerrar conexión: " + e.getMessage());
+        }finally {
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+            for(String s : readers.keySet()){
+                System.out.println(s + ": " + readers.get(s));
+            }
+        }
+    }
+
     /*
     *
     * Sección de métodos adicionales
     *
     * */
-
-    private int primeraConversacionUsuario(int usuarioId) throws SQLException {
-        Connection conn = poolConexiones.obtenerConexion();
-        try {
-            String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, usuarioId);
-            ResultSet rs = stmt.executeQuery();
-            if(rs.next())
-                return rs.getInt("id");
-            else
-                return 0;
-        }
-        finally {
-            if (conn != null){
-                poolConexiones.liberarConexion(conn);
-            }
-        }
-    }
 
     private String getNombreUsu(String telefono) throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
@@ -464,6 +483,12 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
     private void enviarRespuesta(Respuesta respuesta) throws JsonProcessingException {
         String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
         salida.println(jsonRespuesta);
+    }
+
+    //metodo para mandar respuesta a usuario especifico
+    private void enviarRespuesta(Respuesta respuesta, PrintWriter output) throws JsonProcessingException {
+        String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
+        output.println(jsonRespuesta);
     }
 
     // metodo para marcar mensaje como leído

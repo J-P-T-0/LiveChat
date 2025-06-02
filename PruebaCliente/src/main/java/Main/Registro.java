@@ -1,45 +1,29 @@
 package Main;
 
-import Interfaz.GUI;
 import Requests.Registrarse;
 import Respuestas.Aviso;
 import Respuestas.Respuesta;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.swing.*;
 import java.awt.*;
-import java.io.BufferedReader;
-import java.io.PrintWriter;
+
+import static Main.Conexion.*;
+import static Main.CreateRequests.RequestRegistro;
 
 public class Registro extends JFrame {
     private JTextField txtNombre;
     private JTextField txtTelefono;
     private JPasswordField txtContrasena;
     private JButton btnRegistrarse;
-
-    //Cuestiones del server
-    private static PrintWriter salida;
-    private static BufferedReader entrada;
-    private static ObjectMapper objectMapper;
+    private static Registro frame;
 
     public Registro() {
         setTitle("Registro de Usuario");
         setSize(300, 200);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        conectarAServidor();
         initUI();
-    }
-
-    public static void conectarAServidor() {
-        ConexionServer conectarAServidor = LoginC.conexionServer;
-        try {
-            entrada= conectarAServidor.getEntrada();
-            salida= conectarAServidor.getSalida();
-            objectMapper= conectarAServidor.getObjectMapper();
-        } catch (Exception e) {
-            GUI.mostrarError("Error al conectar con el servidor.");
-        }
+        frame = this;
     }
 
     private void initUI() {
@@ -51,7 +35,7 @@ public class Registro extends JFrame {
         txtContrasena = new JPasswordField();
         btnRegistrarse = new JButton("Registrarse");
 
-        btnRegistrarse.addActionListener(e -> registrar());
+        btnRegistrarse.addActionListener(e -> startRegistro());
 
         JPanel panel = new JPanel(new GridLayout(4, 2));
         panel.add(new JLabel("Nombre:"));
@@ -70,7 +54,7 @@ public class Registro extends JFrame {
         return (!telefono.isBlank() && telefono.length()==10 && telefono.matches("^[0-9]+$"));
     }
 
-    private void registrar(){
+    private void startRegistro(){
         String telefono = txtTelefono.getText().trim();
         String contrasena = new String(txtContrasena.getPassword());
         String nombre = txtNombre.getText().trim();
@@ -85,24 +69,14 @@ public class Registro extends JFrame {
             return;
         }
 
-        try{
-            String jsonRequest = objectMapper.writeValueAsString(new Registrarse(nombre,telefono,contrasena));
-            System.out.println(jsonRequest);
-            salida.println(jsonRequest);
+        RequestRegistro(nombre, telefono, contrasena);
+    }
 
-            String jsonResponse = entrada.readLine();
-            System.out.println(jsonResponse);
-            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-            if(respuesta instanceof Aviso){
-                Aviso aviso = (Aviso) respuesta;
-                JOptionPane.showMessageDialog(this,aviso.getDescripcion(),aviso.getEstado(),JOptionPane.INFORMATION_MESSAGE);
-                if(aviso.getEstado().equals("éxito")){
-                    this.dispose();
-                    new LoginC().setVisible(true);
-                }
-            }
-        }catch (Exception e){
-            System.out.println("Error al registrar: " + e.getMessage());
+    public static void confirmRegistro(Aviso aviso){
+        JOptionPane.showMessageDialog(frame, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.INFORMATION_MESSAGE);
+        if(aviso.getEstado().equals("éxito")){
+            frame.dispose();
+            new ChatLogin().setVisible(true);
         }
     }
 

@@ -138,7 +138,7 @@ public class ChatUi extends JFrame {
     private void buscarUsuarioYCrearConversacion() {
         try {
             CrearConversacionIndividual crear = new CrearConversacionIndividual(
-                    txtNumeroBuscar.getText(), token);
+                    txtNumeroBuscar.getText(), token, "1000000000");
             salida.println(mapper.writeValueAsString(crear));
 
             String respuesta = entrada.readLine();

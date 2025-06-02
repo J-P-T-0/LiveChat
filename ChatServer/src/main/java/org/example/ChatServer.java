@@ -1,15 +1,24 @@
 package org.example;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ChatServer implements AutoCloseable {
     private int puerto;
     private ServerSocket servidor;
     private volatile boolean ejecutando = true;
     protected poolConexiones poolConn;
+
+    //telefonos como keys
+    public static Map<String, BufferedReader> readers = new HashMap<String, BufferedReader>();
+    public static Map<String, PrintWriter> writers = new HashMap<String, PrintWriter>();
 
     public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;

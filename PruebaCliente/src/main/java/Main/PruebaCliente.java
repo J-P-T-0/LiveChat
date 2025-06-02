@@ -102,7 +102,7 @@ public class PruebaCliente {
 
     private void crearConvPriv(){
         try{
-            String jsonRequest = objectMapper.writeValueAsString(new CrearConversacionIndividual("Hola Mundo","1234567890"));
+            String jsonRequest = objectMapper.writeValueAsString(new CrearConversacionIndividual("Hola Mundo","1234567890", "1234567891"));
             System.out.println(jsonRequest);
             salida.println(jsonRequest);
 
