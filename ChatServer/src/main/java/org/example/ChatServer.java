@@ -13,6 +13,8 @@ import java.net.Socket;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 public class ChatServer implements AutoCloseable {
     private int puerto;
@@ -56,29 +58,66 @@ public class ChatServer implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {//Cerrar correctamente el server
-        ejecutando = false;
-        // Crear una solicitud de cierre para cada cliente conectado
+    public void close() throws Exception {
+    int DelayDeCierre = 20*1000; // 20 segundos
+    
+    ejecutando = false;
+
+    // Notificar a todos los clientes del cierre, bloque sincronized porque writers es compartido con Client handler
+    synchronized(writers) {
         for (Map.Entry<String, PrintWriter> entry : writers.entrySet()) {
             try {
-                enviarRespuesta(new Aviso("close", "El servidor se está cerrando"), entry.getValue());
+                PrintWriter output = entry.getValue();
+                enviarRespuesta(
+                    new Aviso("Servidor Cerrando!", 
+                             "El servidor cerrará en " + (DelayDeCierre/1000) + " segundos"), 
+                    output
+                );
+                output.flush();//vaciar buffer
             } catch (Exception e) {
-                System.err.println("Error al enviar aviso de cierre a cliente: " + e.getMessage());
+                System.err.println("Error al notificar cliente " + entry.getKey() + ": " + e.getMessage());
             }
         }
-        Thread.sleep(1000);
+    }
 
-        // Cerrar el servidor y las conexiones
-        if (servidor != null) {
-            servidor.close();
-        }
-        if (poolConn != null) {
-            poolConn.close();
-        }
+    // Esperar antes de cerrar
+    try {
+        Thread.sleep(DelayDeCierre);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        System.err.println("Interrupción durante el apagado: " + e.getMessage());
+    }
 
-        // Limpiar el mapa de writers
+    // Cerrar conexiones de clientes
+    synchronized(writers) {    // Notificar a todos los clientes, bloque sincronized porque writers es compartido con Client handler
+        for (PrintWriter writer : writers.values()) {
+            try {
+                writer.close();//Cerrar writer
+            } catch (Exception e) {
+                System.err.println("Error al cerrar un writer: " + e.getMessage());
+            }
+        }
         writers.clear();
     }
+
+    // Cerrar recursos del servidor
+    try {
+        if (servidor != null) {
+            servidor.close();//cerrar server
+        }
+    } catch (IOException e) {
+        System.err.println("Error al cerrar servidor: " + e.getMessage());
+    }
+
+    try {
+        if (poolConn != null) {
+            poolConn.close();//cerrar pool
+        }
+    } catch (SQLException e) {
+        System.err.println("Error al cerrar pool de conexiones: " + e.getMessage());
+    }
+    System.out.println("Servidor cerrado correctamente");
+}
 
     //Metodo de enviar mensaje de clientHandler
     private void enviarRespuesta(Respuesta respuesta, PrintWriter output) throws JsonProcessingException {

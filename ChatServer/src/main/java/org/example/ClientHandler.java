@@ -93,6 +93,8 @@ public class ClientHandler extends Thread {
 
                         case Close closeConn -> closeConn(closeConn);
 
+                        case Reconnect reconnectRequest -> reconnect(reconnectRequest);
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
@@ -747,4 +749,30 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
     
+private void reconnect(Reconnect request) throws JsonProcessingException {
+    try {
+        // Validar que el usuario exista
+        if (!existeTelefono(request.getTelefono())) {
+            enviarRespuesta(new Aviso("error", "Usuario no encontrado"));
+            return;
+        }
+
+        // Remover conexión anterior si existe
+        writers.remove(request.getTelefono());
+        
+        // Reinicializar la conexión
+        try {
+            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            salida = new PrintWriter(socket.getOutputStream(), true);
+        } catch (IOException e) {
+            throw new IOException("Error al reiniciar streams de datos: " + e.getMessage());
+        }
+        enviarRespuesta(new Aviso("exito", "Necesitas Reinciar sesion"));
+        // Usuario actual se hace null de modo que no se puede acceder a ninguna funcion hasta volver a logearse.
+        usuarioActualID=null;
+
+    } catch (Exception e) {
+        enviarRespuesta(new Aviso("error", "Error en la reconexión: " + e.getMessage()));
+    }
+}
 }
