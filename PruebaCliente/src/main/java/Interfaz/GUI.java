@@ -3,17 +3,16 @@ package Interfaz;
 import Respuestas.*;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static Main.Conexion.*;
 import static Main.CreateRequests.*;
+
 
 public class GUI extends JFrame {
     //Tabla de conversaciones
@@ -28,14 +27,14 @@ public class GUI extends JFrame {
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static Map<String, Integer> conversaciones;
+    private static Map<String, String> contactos;
 
     private static GUI frame;
 
     //constructor
     public GUI(LoginAuth loginInfo) {
         GUI.loginInfo = loginInfo;
-        conversaciones = new HashMap<>();
+        contactos = new HashMap<>();
         initComponents();
         frame = this;
 
@@ -59,7 +58,7 @@ public class GUI extends JFrame {
 
 // === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
+        modeloConversaciones.setColumnIdentifiers(new String[]{"ID","Nombre"});
         tablaConversaciones = new JTable(modeloConversaciones) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -67,6 +66,8 @@ public class GUI extends JFrame {
             }
         };
         tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
+        TableColumnModel tcm = tablaConversaciones.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
 
         JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
         JPanel panelConversaciones = new JPanel();
@@ -146,34 +147,34 @@ public class GUI extends JFrame {
 
         modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
         for (DatosConversacion conv : respuesta.getDatosConversacion()) {
-            String destinatario = " ";
 
             if (!conv.isEsGrupo()) {
+                String destinatario = " ";
                 for(String p: conv.getParticipantes()) {
                     if(!p.equals(loginInfo.getNombre())) {
                         destinatario = p;
                         break;
                     }
                 }
-                conversaciones.put(destinatario, conv.getId());
-
                 modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
                         destinatario
                 });
+            }else{
+                modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
+                        conv.getNombre()
+                });
             }
-            //Aqui ya con un else nomas y cargas el nombre del grupo
         }
 
     }
-
 
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-
-        int conversationId = conversaciones.get(destinatario);
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestMensajes(conversationId);
     }
@@ -182,9 +183,8 @@ public class GUI extends JFrame {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
-        int conversationId = conversaciones.get(destinatario);
         if(respuesta.getConvID() == conversationId) {
             SwingUtilities.invokeLater(() -> {
                 modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
@@ -209,8 +209,8 @@ public class GUI extends JFrame {
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-        int conversationId = conversaciones.get(destinatario);
+
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestEnviarMsg(txtMensaje.getText(), conversationId);
 
@@ -279,14 +279,12 @@ public class GUI extends JFrame {
         });
 
         cancelarButton.addActionListener((ActionEvent _) -> {
-           grupo.dispose();
+            grupo.dispose();
         });
 
     }
 
-
     //clase dedicada para la creacion de chats 1v1
-
 
     private void crearDM() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
@@ -311,7 +309,7 @@ public class GUI extends JFrame {
         JOptionPane.showMessageDialog(frame, "¡Conversación con " + convID.getDestinatario() + " creada!");
 
         //Añade conversacion al mapa
-        conversaciones.put(convID.getDestinatario(), convID.getConvID());
+        //contactos.put(convID.getDestinatario(), convID.getConvID());
 
         // Agregar manualmente la conversación a la tabla
         modeloConversaciones.addRow(new Object[]{
