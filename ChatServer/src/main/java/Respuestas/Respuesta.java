@@ -21,7 +21,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = NumsInvalidos.class, name = "NUMS_INVALIDOS"),
         @JsonSubTypes.Type(value = GroupParticipants.class, name = "GROUP_PARTICIPANTS"),
         @JsonSubTypes.Type(value = ReturnEstadoMensaje.class, name = "RETURN_ESTADO_MENSAJE"),
-        @JsonSubTypes.Type(value = CloseClient.class, name = "CLOSE_CLIENT")
+        @JsonSubTypes.Type(value = CloseClient.class, name = "CLOSE_CLIENT"),
+        @JsonSubTypes.Type(value = ReturnUsusEnLinea.class, name = "RETURN_USUS_EN_LINEA"),
 })
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
