@@ -17,7 +17,6 @@ public class ChatServer implements AutoCloseable {
     protected poolConexiones poolConn;
 
     //telefonos como keys
-    public static Map<String, BufferedReader> readers = new HashMap<String, BufferedReader>();
     public static Map<String, PrintWriter> writers = new HashMap<String, PrintWriter>();
 
     public ChatServer(int puerto) throws SQLException {
