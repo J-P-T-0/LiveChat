@@ -12,10 +12,8 @@ import java.util.ArrayList;
 //importar librerias para JSON
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import static org.example.ChatServer.readers;
+
 import static org.example.ChatServer.writers;
 
 // Clase que maneja cada conexion de cliente en un hilo separado
@@ -122,7 +120,6 @@ public class ClientHandler extends Thread {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
                 String nombre = getNombreUsu(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
-                readers.put(request.getTelefono(), entrada);
                 writers.put(request.getTelefono(), salida);
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
@@ -489,7 +486,6 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         try {
             enviarRespuesta(new CloseClient());
             writers.remove(closeConn.getTelefono());
-            readers.remove(closeConn.getTelefono());
             salida.close();
             entrada.close();
             socket.close();
@@ -498,9 +494,6 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }finally {
             for(String s : writers.keySet()){
                 System.out.println(s + ": " + writers.get(s));
-            }
-            for(String s : readers.keySet()){
-                System.out.println(s + ": " + readers.get(s));
             }
         }
     }
