@@ -407,9 +407,11 @@ public class ClientHandler extends Thread {
 
                             //Se asegura de que el destinatario esté en linea para evitar errores
                             if(writers.containsKey(request.getTelefonoDestino())) {
-                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente, request.getTelefonoDestino()), writers.get(request.getTelefonoDestino()));
+                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente, getTelFromID(usuarioActualID)), writers.get(request.getTelefonoDestino()));
                             }
+
                         }
+                        usuariosEnLinea();
                     }
                 }
 
@@ -421,6 +423,7 @@ public class ClientHandler extends Thread {
                 throw e;
             }
         }finally {
+
             conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);

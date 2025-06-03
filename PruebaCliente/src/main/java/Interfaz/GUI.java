@@ -165,7 +165,8 @@ public class GUI extends JFrame {
         modeloUsuariosConectados.clear();
         for(String u: respuesta.getUsuariosEnLinea().keySet()){
             if(u.equals(loginInfo.getTelefono())) continue;
-            modeloUsuariosConectados.addElement(u);
+
+            modeloUsuariosConectados.addElement(contactos.getOrDefault(u, u));
         }
     }
 
@@ -208,6 +209,10 @@ public class GUI extends JFrame {
                         conv.getNombre()
                 });
             }
+        }
+
+        for(String u: contactos.keySet()){
+            System.out.println(u + ": " + contactos.get(u));
         }
 
     }
@@ -363,6 +368,12 @@ public class GUI extends JFrame {
                 convID.getConvID(),
                 convID.getDestinatario()
         });
+
+        for (String u : contactos.keySet()) {
+            System.out.println(u + ": " + contactos.get(u));
+        }
+
+        RequestGetUsusEnLinea();
     }
 
     public static void RefreshConversaciones(GroupParticipants groupParticipants) {
