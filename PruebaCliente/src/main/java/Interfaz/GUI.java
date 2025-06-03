@@ -6,6 +6,8 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +26,7 @@ public class GUI extends JFrame {
     private static DefaultTableModel modeloMensajes;
 
     //Modelo para mostrar los usuarios conectados
+    private static JList<String> listaUsuarios;
     private static DefaultListModel<String> modeloUsuariosConectados;
 
     //Mensaje
@@ -55,6 +58,7 @@ public class GUI extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(800, heightOfFrame);
         setTitle("Conversaciones de " + loginInfo.getNombre());
+        setResizable(false);
 
 // === PANEL PRINCIPAL ===
         JPanel panelPrincipal = new JPanel();
@@ -128,12 +132,13 @@ public class GUI extends JFrame {
         btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
-        JList<String> listaUsuarios = new JList<>();
+        listaUsuarios = new JList<>();
         modeloUsuariosConectados= new DefaultListModel<>();
         listaUsuarios.setModel(modeloUsuariosConectados);
         listaUsuarios.setFixedCellWidth(localwidth);
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
+        listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
@@ -163,6 +168,17 @@ public class GUI extends JFrame {
             }
         });
 
+    }
+
+    private static void copiarTexto() {
+        String selectedValue = listaUsuarios.getSelectedValue(); // Obtener el valor seleccionado
+
+        if (selectedValue != null) {
+            StringSelection stringSelection = new StringSelection(selectedValue);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            System.out.println("Copiado: " + selectedValue);
+        }
     }
 
     //Funcion de actualizacion de los usuarios
