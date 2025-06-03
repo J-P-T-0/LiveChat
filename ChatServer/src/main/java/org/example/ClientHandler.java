@@ -402,20 +402,17 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 ArrayList<Integer> participantesValidos = new ArrayList<>();
                 participantesValidos.add(usuarioActualID);
 
-                StringBuilder telefonosInvalidos = new StringBuilder();
-                StringBuilder telefonosValidos = new StringBuilder();
+                ArrayList<String> telefonosInvalidos = new ArrayList<>();
+
 
                 // Validar y recolectar IDs por teléfono
-                for (String telefono : request.getNumsTelefono().split(",")) {
+                for (String telefono : request.getNumsTelefono()) {
                     String tel = telefono.trim();
                     Integer id = validarTelefono(tel);
                     if (id != null) {
                         participantesValidos.add(id);
-                    } else {
-                        if (!tel.isEmpty()) {
-                            if (telefonosInvalidos.length() > 0) telefonosInvalidos.append(", ");
-                            telefonosInvalidos.append(tel);
-                        }
+                    } else if (!tel.isBlank()){
+                        telefonosInvalidos.add(tel);
                     }
                 }
 
@@ -426,8 +423,8 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 }
 
                 // Notifica advertencia si hay errores
-                if (telefonosInvalidos.length() > 0) {
-                    enviarRespuesta(new NumsInvalidos(telefonosInvalidos.toString()));
+                if (!telefonosInvalidos.isEmpty()) {
+                    enviarRespuesta(new NumsInvalidos(telefonosInvalidos));
                 }
 
                 // Crea conversación tipo grupo
@@ -449,6 +446,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         }
 
                         try (PreparedStatement insertar = conn.prepareStatement(sb.toString())) {
+                            ArrayList<String> ID_telefonosValidos = new ArrayList<>();
                             int idx = 1;
                             for (Integer idUsuario : participantesValidos) {
                                 insertar.setInt(idx++, idConversacion);
@@ -456,13 +454,12 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
 
                                 String telID = getTelFromID(idUsuario);
                                 if(telID != null) {
-                                    if (telefonosValidos.length() > 0) telefonosValidos.append(", ");
-                                    telefonosValidos.append(telID);
+                                    ID_telefonosValidos.add(telID);
                                 }
                             }
                             insertar.executeUpdate();
 
-                            enviarRespuesta(new GroupParticipants(idConversacion, telefonosValidos.toString()));
+                            enviarRespuesta(new GroupParticipants(idConversacion, ID_telefonosValidos, request.getNombreGrupo()));
                         }
                     }
                 }
