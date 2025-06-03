@@ -65,43 +65,47 @@ public class ClientHandler extends Thread {
                     //Convierte el string que recibe los mensajes de clientes y los convierte al formato Json (un arbol de objetos)
                     System.out.println(linea);
 
-                    //Almacena el request pedido de lado de cliente
-                    Request newRequest = traductorJson.readValue(linea, Request.class);
+                    if(linea.trim().startsWith("{")){
 
-                    System.out.println("traductor funciona");
+                        //Almacena el request pedido de lado de cliente
+                        Request newRequest = traductorJson.readValue(linea, Request.class);
 
-                    // Verificación de autenticación
-                    if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
-                            && usuarioActualID == null) {
-                        enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
-                        continue;
+                        System.out.println("traductor funciona");
+
+                        // Verificación de autenticación
+                        if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
+                                && usuarioActualID == null) {
+                            enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
+                            continue;
+                        }
+
+                        switch (newRequest) {
+                            case Login loginRequest->login(loginRequest);
+
+                            case Registrarse registroRequest ->registrar(registroRequest);
+
+                            case GetConversaciones _ -> cargarConversaciones();
+
+                            case GetMensajes mensajesRequest -> getMensajes(mensajesRequest);
+
+                            case EnviarMensaje enviarMensajeRequest ->enviarMensaje(enviarMensajeRequest);
+
+                            case CrearConversacionIndividual crearConvPrivRequest -> crearConversacionIndividual(crearConvPrivRequest);
+
+                            case CrearGrupo crearGrupoRequest -> crearGrupo(crearGrupoRequest);
+
+                            case GetEstadoMensaje getEstadoMensajeRequest -> obtenerEstadoMensaje(getEstadoMensajeRequest);
+
+                            case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
+
+                            case Close closeConn -> closeConn(closeConn);
+
+                            case GetUsusEnLinea _ -> usuariosEnLinea();
+
+                            default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
+                        }
                     }
 
-                    switch (newRequest) {
-                        case Login loginRequest->login(loginRequest);
-
-                        case Registrarse registroRequest ->registrar(registroRequest);
-
-                        case GetConversaciones _ -> cargarConversaciones();
-
-                        case GetMensajes mensajesRequest -> getMensajes(mensajesRequest);
-
-                        case EnviarMensaje enviarMensajeRequest ->enviarMensaje(enviarMensajeRequest);
-
-                        case CrearConversacionIndividual crearConvPrivRequest -> crearConversacionIndividual(crearConvPrivRequest);
-
-                        case CrearGrupo crearGrupoRequest -> crearGrupo(crearGrupoRequest);
-
-                        case GetEstadoMensaje getEstadoMensajeRequest -> obtenerEstadoMensaje(getEstadoMensajeRequest);
-
-                        case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
-
-                        case Close closeConn -> closeConn(closeConn);
-
-                        case GetUsusEnLinea _ -> usuariosEnLinea();
-
-                        default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
-                    }
                 } catch (Exception e) {
                     System.err.println(e.getMessage());
                     enviarRespuesta(new Aviso("error", "Error al procesar comando: " + e.getMessage()));
@@ -148,8 +152,7 @@ public class ClientHandler extends Thread {
         }
     }
 
-    private ArrayList<String> getParticipantes(int conv_id)  throws SQLException{
-        Connection conn = poolConexiones.obtenerConexion();
+    private ArrayList<String> getParticipantes(int conv_id, Connection conn)  throws SQLException{
         ArrayList<String> participantes = new ArrayList<>();
 
         String query = """               
@@ -177,8 +180,7 @@ public class ClientHandler extends Thread {
         return participantes;
     }
 
-    private ArrayList<String> getTelParticipantes(int conv_id)  throws SQLException{
-        Connection conn = poolConexiones.obtenerConexion();
+    private ArrayList<String> getTelParticipantes(int conv_id, Connection conn)  throws SQLException{
         ArrayList<String> telefonos = new ArrayList<>();
 
         String query = """               
@@ -225,8 +227,8 @@ public class ClientHandler extends Thread {
 
             while (rs.next()) {
                 int id = rs.getInt("id");
-                ArrayList<String> participantes = getParticipantes(id);
-                ArrayList<String> telefonos = getTelParticipantes(id);
+                ArrayList<String> participantes = getParticipantes(id,conn);
+                ArrayList<String> telefonos = getTelParticipantes(id,conn);
                 //conv es como crear un objeto de tipo conversacion
                 datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes, telefonos));
             }
@@ -236,6 +238,7 @@ public class ClientHandler extends Thread {
         }
     }
     finally {
+        conn.setAutoCommit(true);
         if (conn != null){
             poolConexiones.liberarConexion(conn);
         }
@@ -326,12 +329,13 @@ public class ClientHandler extends Thread {
                 enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
             }
         } finally {
+
+            ArrayList<String> telefonos = getTelParticipantes(request.getConversacionID(), conn);
+
             conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
             }
-
-            ArrayList<String> telefonos = getTelParticipantes(request.getConversacionID());
 
             for(String s : writers.keySet()){
                 System.out.println(s + ": " + writers.get(s));
@@ -345,6 +349,8 @@ public class ClientHandler extends Thread {
                     getMensajes(new GetMensajes(request.getConversacionID()), tel);
                 }
             }
+
+
         }
     }
 
@@ -469,7 +475,7 @@ public class ClientHandler extends Thread {
                             }
                             insertar.executeUpdate();
 
-                            enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion), request.getNombreGrupo()));
+                            enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion, conn), request.getNombreGrupo()));
                         }
                     }
                 }

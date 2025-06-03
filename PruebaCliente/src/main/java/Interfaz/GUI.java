@@ -19,6 +19,8 @@ public class GUI extends JFrame {
     private static DefaultTableModel modeloConversaciones;
 
     //Modelo para modificar la tabla de mensajes
+    private static JPanel mensajesPanel;
+    private static JScrollPane scrollMensajes;
     private static DefaultTableModel modeloMensajes;
 
     //Modelo para mostrar los usuarios conectados
@@ -40,6 +42,7 @@ public class GUI extends JFrame {
         conversaciones = new HashMap<>();
         initComponents();
         frame = this;
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
 
         //evento para cargar conversaciones
         RequestConversaciones();
@@ -82,12 +85,12 @@ public class GUI extends JFrame {
         panelConversaciones.add(scrollConversaciones, BorderLayout.CENTER);
 
 // === PANEL DE MENSAJES ===
-        modeloMensajes = new DefaultTableModel();
-        modeloMensajes.setColumnIdentifiers(new String[]{"Remitente", "Mensaje", "Fecha"});
-        JTable tablaMensajes = new JTable(modeloMensajes);
-        tablaMensajes.setEnabled(false);
+        mensajesPanel = new JPanel();
+        mensajesPanel.setLayout(new BoxLayout(mensajesPanel, BoxLayout.Y_AXIS));
+        scrollMensajes = new JScrollPane(mensajesPanel);
+        scrollMensajes.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 
-        JScrollPane scrollMensajes = new JScrollPane(tablaMensajes);
+
         JPanel panelMensajes = new JPanel();
         panelMensajes.setLayout(new BorderLayout());
         panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
@@ -233,16 +236,42 @@ public class GUI extends JFrame {
         int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         if(respuesta.getConvID() == conversationId) {
-            SwingUtilities.invokeLater(() -> {
-                modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
-                for (DatosMensajes e : respuesta.getDatosMensajes()) {
-                    modeloMensajes.addRow(new Object[]{
-                            e.getNombre(),
-                            e.getMensaje(),
-                            e.getFecha()
-                    });
-                }
-            });
+            mensajesPanel.removeAll(); // Limpia mensajes anteriores
+
+            for (DatosMensajes e : respuesta.getDatosMensajes()) {
+                JPanel burbuja = new JPanel();
+                burbuja.setLayout(new BoxLayout(burbuja, BoxLayout.Y_AXIS));
+                burbuja.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+                burbuja.setBackground(e.getNombre().equals(loginInfo.getNombre()) ? new Color(220, 248, 198) : Color.WHITE);
+
+                JLabel remitente = new JLabel(e.getNombre());
+                remitente.setFont(new Font("Arial", Font.BOLD, 12));
+
+                JTextArea mensaje = new JTextArea(e.getMensaje());
+                mensaje.setFont(new Font("Arial", Font.PLAIN, 14));
+                mensaje.setLineWrap(true);
+                mensaje.setWrapStyleWord(true);
+                mensaje.setEditable(false);
+                mensaje.setOpaque(false);
+
+                JLabel fecha = new JLabel(e.getFecha());
+                fecha.setFont(new Font("Arial", Font.ITALIC, 10));
+                fecha.setHorizontalAlignment(SwingConstants.RIGHT);
+
+                burbuja.add(remitente);
+                burbuja.add(mensaje);
+                burbuja.add(fecha);
+
+                JPanel contenedor = new JPanel(new FlowLayout(e.getNombre().equals(loginInfo.getNombre()) ? FlowLayout.RIGHT : FlowLayout.LEFT));
+                contenedor.add(burbuja);
+                mensajesPanel.add(contenedor);
+            }
+
+            // Refresca la vista
+            mensajesPanel.revalidate();
+            mensajesPanel.repaint();
+            scrollMensajes.getVerticalScrollBar().setValue(scrollMensajes.getVerticalScrollBar().getMaximum());
+
         }
 
     }
