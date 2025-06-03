@@ -3,14 +3,13 @@ package Interfaz;
 import Respuestas.*;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.io.IOException;
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
-import static Main.Conexion.*;
 import static Main.CreateRequests.*;
 
 public class GUI extends JFrame {
@@ -29,13 +28,15 @@ public class GUI extends JFrame {
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static Map<String, Integer> conversaciones;
+    private static HashMap<String, String> contactos;
+    private static HashMap<Integer, String> conversaciones;
 
     private static GUI frame;
 
     //constructor
     public GUI(LoginAuth loginInfo) {
         GUI.loginInfo = loginInfo;
+        contactos = new HashMap<>();
         conversaciones = new HashMap<>();
         initComponents();
         frame = this;
@@ -44,7 +45,6 @@ public class GUI extends JFrame {
         RequestConversaciones();
         RequestGetUsusEnLinea();
     }
-
 
     //GUI
     private void initComponents() {
@@ -63,7 +63,7 @@ public class GUI extends JFrame {
 
 // === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
+        modeloConversaciones.setColumnIdentifiers(new String[]{"ID","Nombre"});
         tablaConversaciones = new JTable(modeloConversaciones) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -71,6 +71,8 @@ public class GUI extends JFrame {
             }
         };
         tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
+        TableColumnModel tcm = tablaConversaciones.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
 
         JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
         JPanel panelConversaciones = new JPanel();
@@ -119,6 +121,7 @@ public class GUI extends JFrame {
         btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
         btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
@@ -172,34 +175,48 @@ public class GUI extends JFrame {
 
         modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
         for (DatosConversacion conv : respuesta.getDatosConversacion()) {
-            String destinatario = " ";
 
             if (!conv.isEsGrupo()) {
+                String destinatario = " ";
+                String telefono = " ";
                 for(String p: conv.getParticipantes()) {
                     if(!p.equals(loginInfo.getNombre())) {
                         destinatario = p;
-                        break;
                     }
                 }
-                conversaciones.put(destinatario, conv.getId());
+
+                for(String t: conv.getTelefonos()) {
+                    if(!t.equals(loginInfo.getTelefono())) {
+                        telefono = t;
+                    }
+                }
 
                 modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
                         destinatario
                 });
+
+                if(!contactos.containsKey(telefono))
+                    contactos.put(telefono, destinatario);
+
+                if(!conversaciones.containsKey(conv.getId()))
+                    conversaciones.put(conv.getId(), telefono);
+
+            }else{
+                modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
+                        conv.getNombre()
+                });
             }
-            //Aqui ya con un else nomas y cargas el nombre del grupo
         }
 
     }
-
 
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-
-        int conversationId = conversaciones.get(destinatario);
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestMensajes(conversationId);
     }
@@ -208,9 +225,8 @@ public class GUI extends JFrame {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
-        int conversationId = conversaciones.get(destinatario);
         if(respuesta.getConvID() == conversationId) {
             SwingUtilities.invokeLater(() -> {
                 modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
@@ -235,8 +251,8 @@ public class GUI extends JFrame {
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-        int conversationId = conversaciones.get(destinatario);
+
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestEnviarMsg(txtMensaje.getText(), conversationId);
 
@@ -244,8 +260,78 @@ public class GUI extends JFrame {
         cargarMensajes();
     }
 
+    private void crearGrupo() {
+        ArrayList<String> usuarios = new ArrayList<>();
+        usuarios.add(loginInfo.getTelefono());
+
+        JFrame grupo = new JFrame();
+        grupo.setTitle("Crear Grupo");
+        grupo.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        grupo.setSize(400, 300);
+        grupo.setLocationRelativeTo(null); // Centra la ventana
+
+        grupo.setLayout(new BorderLayout(10, 10));
+
+        // Parte superior: nombre del grupo
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(new JLabel("Nombre del grupo:"), BorderLayout.WEST);
+        JTextField nombreGrupoField = new JTextField();
+        topPanel.add(nombreGrupoField, BorderLayout.CENTER);
+        grupo.add(topPanel, BorderLayout.NORTH);
+
+
+        JTable nombresTable = new JTable(modeloConversaciones);
+        nombresTable.setRowSelectionAllowed(true);
+        nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        TableColumnModel tcm = nombresTable.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
+
+        JScrollPane scrollPane = new JScrollPane(nombresTable);
+        grupo.add(scrollPane, BorderLayout.CENTER);
+
+        // Parte inferior: botones
+        JPanel bottomPanel = new JPanel();
+        JButton confirmarButton = new JButton("Confirmar");
+        JButton cancelarButton = new JButton("Cancelar");
+        bottomPanel.add(confirmarButton);
+        bottomPanel.add(cancelarButton);
+        grupo.add(bottomPanel, BorderLayout.SOUTH);
+
+        grupo.setVisible(true);
+
+        confirmarButton.addActionListener((ActionEvent _) -> {
+            int[] filasSeleccionadas = nombresTable.getSelectedRows();
+            String nombreGrupo = nombreGrupoField.getText();
+
+            for (int fila : filasSeleccionadas) {
+                Integer conversationId = Integer.parseInt(nombresTable.getModel().getValueAt(fila, 0).toString());
+                String telefono = conversaciones.get(conversationId);
+
+                usuarios.add(telefono);
+            }
+
+            if (nombreGrupo.isBlank()) {
+                JOptionPane.showMessageDialog(this, "Ingresa un nombre");
+                return;
+            }
+
+            if (usuarios.size() < 2) {
+                JOptionPane.showMessageDialog(this, "Selecciona usuarios");
+                return;
+            }
+
+            RequestNuevoGrupo(nombreGrupo, usuarios);
+            grupo.dispose();
+        });
+
+        cancelarButton.addActionListener((ActionEvent _) -> {
+            grupo.dispose();
+        });
+
+    }
 
     //clase dedicada para la creacion de chats 1v1
+
     private void crearDM() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 
@@ -269,11 +355,27 @@ public class GUI extends JFrame {
         JOptionPane.showMessageDialog(frame, "¡Conversación con " + convID.getDestinatario() + " creada!");
 
         //Añade conversacion al mapa
-        conversaciones.put(convID.getDestinatario(), convID.getConvID());
+        conversaciones.put(convID.getConvID(), convID.getTelDestinatario());
+        contactos.put(convID.getTelDestinatario(), convID.getDestinatario());
 
         // Agregar manualmente la conversación a la tabla
         modeloConversaciones.addRow(new Object[]{
+                convID.getConvID(),
                 convID.getDestinatario()
+        });
+    }
+
+    public static void RefreshConversaciones(GroupParticipants groupParticipants) {
+        // Mostrar mensaje de éxito
+        JOptionPane.showMessageDialog(frame, "¡Grupo " + groupParticipants.getGroupName() + " creado!");
+
+        //Añade conversacion al mapa
+        conversaciones.put(groupParticipants.getGroupID(), groupParticipants.getGroupName());
+
+        // Agregar manualmente la conversación a la tabla
+        modeloConversaciones.addRow(new Object[]{
+                groupParticipants.getGroupID(),
+                groupParticipants.getGroupName()
         });
     }
 
