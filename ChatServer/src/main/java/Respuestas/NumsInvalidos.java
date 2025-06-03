@@ -2,15 +2,17 @@ package Respuestas;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class NumsInvalidos extends Respuesta {
-    private String regexTelInvalid;
+import java.util.ArrayList;
 
-    public NumsInvalidos(@JsonProperty("telsInvalidos") String texto) {
+public class NumsInvalidos extends Respuesta {
+    private ArrayList<String> regexTelInvalid;
+
+    public NumsInvalidos(@JsonProperty("telsInvalidos") ArrayList<String> texto) {
         super("NUMS_INVALIDOS");
         this.regexTelInvalid = texto;
     }
 
-    public String getRegexTelInvalid() {
+    public ArrayList<String> getRegexTelInvalid() {
         return regexTelInvalid;
     }
 }

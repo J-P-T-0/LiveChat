@@ -1,15 +1,23 @@
 package org.example;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ChatServer implements AutoCloseable {
     private int puerto;
     private ServerSocket servidor;
     private volatile boolean ejecutando = true;
     protected poolConexiones poolConn;
+
+    //telefonos como keys
+    public static Map<String, PrintWriter> writers = new HashMap<String, PrintWriter>();
 
     public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;
@@ -22,12 +30,20 @@ public class ChatServer implements AutoCloseable {
             System.out.println("Server escuchando en puerto " + puerto);
 
             while (ejecutando) {
-                Socket socketCliente = servidor.accept();
-                System.out.println("Cliente conectado");
+                try {
+                    Socket socketCliente = servidor.accept();
+                    System.out.println("Cliente conectado: " + socketCliente);
 
-                ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
-                manejador.start();
+                    ClientHandler manejador = new ClientHandler(socketCliente, poolConn);
+                    manejador.start();
+                } catch (IOException e) {
+                    if (ejecutando) {
+                        System.err.println("Error al aceptar cliente: " + e.getMessage());
+                    }
+                }
             }
+
+            System.out.println("Servidor detenido");
         } catch (IOException e) {
             System.err.println("Error al iniciar el servidor: " + e.getMessage());
         }

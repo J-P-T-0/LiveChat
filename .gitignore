@@ -137,3 +137,8 @@ modules.xml
 .idea/**/azureSettings.xml
 /.idea/dataSources.xml
 /.idea/vcs.xml
+/.idea/.gitignore
+/.idea/encodings.xml
+/.idea/vcs.xml
+/.idea/dataSources.xml
+/.idea/

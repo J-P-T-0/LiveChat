@@ -12,8 +12,9 @@ import java.util.ArrayList;
 //importar librerias para JSON
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+
+
+import static org.example.ChatServer.writers;
 
 // Clase que maneja cada conexion de cliente en un hilo separado
 public class ClientHandler extends Thread {
@@ -27,8 +28,7 @@ public class ClientHandler extends Thread {
     private poolConexiones poolConexiones;
     // ID del usuario autenticado, null si no esta autenticado
     private Integer usuarioActualID = null;
-    // ID de la primera conversación en la que aparece el usuario
-    private Integer primeraConversacion = null;
+
     // Es la clase principa de JSon que transforma objetos de java en JSON y viceversa
     private final ObjectMapper traductorJson = new ObjectMapper();
 
@@ -47,8 +47,10 @@ public class ClientHandler extends Thread {
             try {
                 entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 salida = new PrintWriter(socket.getOutputStream(), true);
+
             } catch (IOException e) {
                 System.out.println("Entrada/salida no disponible: " + e.getMessage());
+                return;
             }
 
             // Confirmar conexion
@@ -63,8 +65,10 @@ public class ClientHandler extends Thread {
                     //Almacena el request pedido de lado de cliente
                     Request newRequest = traductorJson.readValue(linea, Request.class);
 
+                    System.out.println("traductor funciona");
+
                     // Verificación de autenticación
-                    if (!(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
+                    if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
                             && usuarioActualID == null) {
                         enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
                         continue;
@@ -89,9 +93,12 @@ public class ClientHandler extends Thread {
 
                         case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
 
+                        case Close closeConn -> closeConn(closeConn);
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
+                    System.err.println(e.getMessage());
                     enviarRespuesta(new Aviso("error", "Error al procesar comando: " + e.getMessage()));
                 }
             }
@@ -103,6 +110,7 @@ public class ClientHandler extends Thread {
             } catch (IOException e) {
                 System.err.println("Error al cerrar el socket: " + e.getMessage());
             }
+            System.out.println("Cliente finalizado");
         }
     }
 
@@ -112,6 +120,7 @@ public class ClientHandler extends Thread {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
                 String nombre = getNombreUsu(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
+                writers.put(request.getTelefono(), salida);
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
@@ -133,29 +142,57 @@ public class ClientHandler extends Thread {
         }
     }
 
+    private ArrayList<String> getParticipantes(int conv_id)  throws SQLException{
+        Connection conn = poolConexiones.obtenerConexion();
+        ArrayList<String> participantes = new ArrayList<>();
+
+        String query = """               
+            SELECT u.nombre AS participante
+            FROM conversaciones c
+            INNER JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+            INNER JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+            INNER JOIN usuarios u ON cu2.usuario_id = u.id
+            WHERE cu1.usuario_id = ? AND cu1.conversacion_id = ?
+            LIMIT 0, 50;
+            """;
+
+        //Ejecutar la query
+        PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, usuarioActualID);
+        stmt.setInt(2, conv_id);
+        ResultSet rs = stmt.executeQuery();
+        rs.getFetchSize();
+
+        while (rs.next()) {
+            participantes.add(rs.getString("participante"));
+        }
+
+
+        return participantes;
+    }
+
 private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
         String sql = """
-                SELECT c.id, c.nombre, c.isGrupo 
+                SELECT c.id, c.nombre, c.isGrupo
                 FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
-                LIMIT ?,50
+                LIMIT 0,50
                 """;
         try{
-            //Recuperar la primera conversación
-            this.primeraConversacion = primeraConversacionUsuario(this.usuarioActualID)-1;
             //Ejecutar la query
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioActualID);
-            stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosConversacion> datosConv = new ArrayList<>();
+
             while (rs.next()) {
+                ArrayList<String> participantes = getParticipantes(rs.getInt("id"));
                 //conv es como crear un objeto de tipo conversacion
-                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo")));
+                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes));
             }
             enviarRespuesta(new ReturnConversaciones(datosConv));
         }catch (SQLException e) {
@@ -173,27 +210,58 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         Connection conn = poolConexiones.obtenerConexion();
         try {
         String sql = """
-                SELECT u.nombre, m.mensaje, m.fecha_envio 
+                SELECT u.nombre, m.mensaje, m.fecha_envio
                 FROM mensajes m
                 JOIN usuarios u ON m.remitente_id = u.id
-                WHERE m.conversacion_id = ? 
+                WHERE m.conversacion_id = ?
                 ORDER BY m.fecha_envio
-                LIMIT ?,50
+                LIMIT 0,50
                 """;
         try{
             PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, request.getConversacionId());
-            stmt.setInt(2, primeraConversacion);
             ResultSet rs = stmt.executeQuery();
 
             ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
             while (rs.next()) {
                 datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
             }
-            enviarRespuesta(new ReturnMensajes(datosMensajes));
+            enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()));
         }catch(Exception e){
             enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()));
         }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+
+    }
+
+    private void getMensajes(GetMensajes request, String telDestinatario) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = """
+                SELECT u.nombre, m.mensaje, m.fecha_envio
+                FROM mensajes m
+                JOIN usuarios u ON m.remitente_id = u.id
+                WHERE m.conversacion_id = ?
+                ORDER BY m.fecha_envio
+                LIMIT 0,50
+                """;
+            try{
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, request.getConversacionId());
+                ResultSet rs = stmt.executeQuery();
+
+                ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
+                while (rs.next()) {
+                    datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
+                }
+                enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()), writers.get(telDestinatario));
+            }catch(Exception e){
+                enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()), writers.get(telDestinatario));
+            }
         }finally {
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
@@ -213,16 +281,33 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 stmt.setInt(2, usuarioActualID);
                 stmt.setString(3, request.getMensaje());
                 stmt.executeUpdate();
-                getMensajes(new GetMensajes(request.getConversacionID()));
+
+
+
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
                 enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
-        }
+            }
         } finally {
             conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
+            }
+
+            ArrayList<String> participantes = getParticipantes(request.getConversacionID());
+
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+
+            for(String p : participantes){
+                System.out.println(p);
+                String tel = getTelFromNombre(p);
+                //Se asegura de que el destinatario esté en linea para evitar errores
+                if(writers.containsKey(tel)) {
+                    getMensajes(new GetMensajes(request.getConversacionID()), tel);
+                }
             }
         }
     }
@@ -254,7 +339,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     checkStmt.setInt(2, idDestino);
                     ResultSet rs = checkStmt.executeQuery();
                     if (rs.next()) {
-                        enviarRespuesta(new ReturnConvID(rs.getInt("id")));
+                        enviarRespuesta(new Aviso("error", "Este teléfono ya fue añadido a tus conversaciones"));
                         return;
                     }
                 }
@@ -270,6 +355,9 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     if (claves.next()) {
                         int nuevoIdConversacion = claves.getInt(1);
 
+                        String remitente = request.getRemitente();
+                        String destinatario = getNombreUsu(request.getTelefonoDestino());
+
                         // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
                         String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
                         try (PreparedStatement insertStmt = conn.prepareStatement(insertUsuarios)) {
@@ -279,7 +367,12 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                             insertStmt.setInt(4, idDestino);
                             insertStmt.executeUpdate();
 
-                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion));
+                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario));
+
+                            //Se asegura de que el destinatario esté en linea para evitar errores
+                            if(writers.containsKey(request.getTelefonoDestino())) {
+                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente), writers.get(request.getTelefonoDestino()));
+                            }
                         }
                     }
                 }
@@ -309,20 +402,17 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 ArrayList<Integer> participantesValidos = new ArrayList<>();
                 participantesValidos.add(usuarioActualID);
 
-                StringBuilder telefonosInvalidos = new StringBuilder();
-                StringBuilder telefonosValidos = new StringBuilder();
+                ArrayList<String> telefonosInvalidos = new ArrayList<>();
+
 
                 // Validar y recolectar IDs por teléfono
-                for (String telefono : request.getNumsTelefono().split(",")) {
+                for (String telefono : request.getNumsTelefono()) {
                     String tel = telefono.trim();
                     Integer id = validarTelefono(tel);
                     if (id != null) {
                         participantesValidos.add(id);
-                    } else {
-                        if (!tel.isEmpty()) {
-                            if (telefonosInvalidos.length() > 0) telefonosInvalidos.append(", ");
-                            telefonosInvalidos.append(tel);
-                        }
+                    } else if (!tel.isBlank()){
+                        telefonosInvalidos.add(tel);
                     }
                 }
 
@@ -333,8 +423,8 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 }
 
                 // Notifica advertencia si hay errores
-                if (telefonosInvalidos.length() > 0) {
-                    enviarRespuesta(new NumsInvalidos(telefonosInvalidos.toString()));
+                if (!telefonosInvalidos.isEmpty()) {
+                    enviarRespuesta(new NumsInvalidos(telefonosInvalidos));
                 }
 
                 // Crea conversación tipo grupo
@@ -356,6 +446,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         }
 
                         try (PreparedStatement insertar = conn.prepareStatement(sb.toString())) {
+                            ArrayList<String> ID_telefonosValidos = new ArrayList<>();
                             int idx = 1;
                             for (Integer idUsuario : participantesValidos) {
                                 insertar.setInt(idx++, idConversacion);
@@ -363,13 +454,12 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
 
                                 String telID = getTelFromID(idUsuario);
                                 if(telID != null) {
-                                    if (telefonosValidos.length() > 0) telefonosValidos.append(", ");
-                                    telefonosValidos.append(telID);
+                                    ID_telefonosValidos.add(telID);
                                 }
                             }
                             insertar.executeUpdate();
 
-                            enviarRespuesta(new GroupParticipants(idConversacion, telefonosValidos.toString()));
+                            enviarRespuesta(new GroupParticipants(idConversacion, ID_telefonosValidos, request.getNombreGrupo()));
                         }
                     }
                 }
@@ -389,28 +479,27 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
 
+    private void closeConn(Close closeConn) {
+        try {
+            enviarRespuesta(new CloseClient());
+            writers.remove(closeConn.getTelefono());
+            salida.close();
+            entrada.close();
+            socket.close();
+        }catch (Exception e) {
+            System.err.println("Error al cerrar conexión: " + e.getMessage());
+        }finally {
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+        }
+    }
+
     /*
     *
     * Sección de métodos adicionales
     *
     * */
-
-    private int primeraConversacionUsuario(int usuarioId) throws SQLException {
-        Connection conn = poolConexiones.obtenerConexion();
-        try {
-        String sql = "SELECT c.id FROM conversaciones c JOIN conversacion_usuario cu WHERE cu.usuario_id = ? LIMIT 1";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, usuarioId);
-        ResultSet rs = stmt.executeQuery();
-        rs.next();
-        return rs.getInt("id");
-        }
-        finally {
-            if (conn != null){
-                poolConexiones.liberarConexion(conn);
-            }
-        }
-    }
 
     private String getNombreUsu(String telefono) throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
@@ -436,13 +525,20 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         salida.println(jsonRespuesta);
     }
 
+    //metodo para mandar respuesta a usuario especifico
+    private void enviarRespuesta(Respuesta respuesta, PrintWriter output) throws JsonProcessingException {
+        System.out.println("Respuesta a otro");
+        String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
+        output.println(jsonRespuesta);
+    }
+
     // metodo para marcar mensaje como leído
     private void marcarMensajeComoLeido(MarcarLeido request) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
             // verificar que el mensaje pertenezca a una conversación del usuario logeado
             String checkSql = """
-            SELECT m.id 
+            SELECT m.id
             FROM mensajes m
             JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
             WHERE m.id = ? AND cu.usuario_id = ?
@@ -615,6 +711,28 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             String sql = "SELECT telefono FROM usuarios WHERE id = ?";
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, id.toString());
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getString("telefono");
+                }
+            } catch (SQLException e) {
+                enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
+                throw e;
+            }
+            return null;
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    private String getTelFromNombre(String nombre) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = "SELECT telefono FROM usuarios WHERE nombre = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, nombre);
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next()) {
                     return rs.getString("telefono");
