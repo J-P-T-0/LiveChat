@@ -10,9 +10,7 @@ public class LoginAuth extends Respuesta {
 
     public LoginAuth(
             @JsonProperty("nombre") String nombre,
-            @JsonProperty("telefono") String telefono,
-            @JsonProperty("token") String token,
-            @JsonProperty("idUsuario") int idUsuario) {
+            @JsonProperty("telefono") String telefono) {
         super("LOGIN_AUTH");
         this.nombre = nombre;
         this.telefono = telefono;
