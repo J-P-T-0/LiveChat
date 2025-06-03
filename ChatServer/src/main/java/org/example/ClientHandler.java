@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
+import static org.example.ChatServer.traductorJson;
 import static org.example.ChatServer.writers;
 
 // Clase que maneja cada conexion de cliente en un hilo separado
@@ -28,9 +29,6 @@ public class ClientHandler extends Thread {
     private poolConexiones poolConexiones;
     // ID del usuario autenticado, null si no esta autenticado
     private Integer usuarioActualID = null;
-
-    // Es la clase principa de JSon que transforma objetos de java en JSON y viceversa
-    private final ObjectMapper traductorJson = new ObjectMapper();
 
     // Constructor que recibe el socket del cliente
     public ClientHandler(Socket socket, poolConexiones poolConexiones) {
