@@ -54,6 +54,7 @@ public class GUI extends JFrame {
         frame = this;
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
 
+
         //evento para cargar conversaciones
         RequestConversaciones();
         RequestGetUsusEnLinea();
@@ -61,9 +62,9 @@ public class GUI extends JFrame {
 
     //GUI
     private void initComponents() {
-        int heightOfFrame = 600;
+        int heightOfFrame = 720;
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(800, heightOfFrame);
+        setPreferredSize(new Dimension(1080, heightOfFrame));
         setTitle("Conversaciones de " + loginInfo.getNombre());
         setResizable(false);
 
@@ -234,7 +235,11 @@ public class GUI extends JFrame {
         listaUsuarios.setFixedCellWidth(localwidth);
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
-        listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
+        listaUsuarios.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                copiarTexto();
+            }
+        });
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
@@ -271,6 +276,20 @@ public class GUI extends JFrame {
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
             clipboard.setContents(stringSelection, null);
             System.out.println("Copiado: " + selectedValue);
+
+            boolean yaExiste = false;
+
+            for(String e : contactos.keySet()){
+                if(contactos.get(e).equals(selectedValue)){
+                    yaExiste = true;
+                    break;
+                }
+            }
+
+            if(!contactos.containsKey(selectedValue) && !yaExiste) {
+                crearDM(selectedValue);
+            }
+
         }
     }
 
@@ -372,9 +391,6 @@ public class GUI extends JFrame {
                 if (esGrupo) mensajesPanel.setBorder(BorderFactory.createTitledBorder(
                         "Grupo " + conv.getNombre() + " : " + conv.getParticipantes()
                 ));
-                else mensajesPanel.setBorder(BorderFactory.createTitledBorder(
-                        "Chat con: " + conv.getParticipantes()
-                ));
                 break;
             }
         }
@@ -443,60 +459,101 @@ public class GUI extends JFrame {
         ArrayList<String> usuarios = new ArrayList<>();
         usuarios.add(loginInfo.getTelefono());
 
-        JFrame grupo = new JFrame();
-        grupo.setTitle("Crear Grupo");
+        JFrame grupo = new JFrame("Crear Grupo");
         grupo.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        grupo.setSize(400, 300);
-        grupo.setLocationRelativeTo(null); // Centra la ventana
-
+        grupo.setSize(450, 400);
+        grupo.setLocationRelativeTo(null);
         grupo.setLayout(new BorderLayout(10, 10));
 
-        // Parte superior: nombre del grupo
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(new JLabel("Nombre del grupo:"), BorderLayout.WEST);
+// Margen general
+        grupo.getRootPane().setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+// === PANEL SUPERIOR: Nombre del grupo ===
+        JPanel topPanel = new JPanel(new BorderLayout(10, 10));
+        topPanel.setBorder(BorderFactory.createTitledBorder("Información del grupo"));
+
+        JLabel nombreLabel = new JLabel("Nombre del grupo:");
+        nombreLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
         JTextField nombreGrupoField = new JTextField();
+        nombreGrupoField.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        topPanel.add(nombreLabel, BorderLayout.WEST);
         topPanel.add(nombreGrupoField, BorderLayout.CENTER);
         grupo.add(topPanel, BorderLayout.NORTH);
 
-        TableModel tableModel = modeloConversaciones;
+// === TABLA DE CONTACTOS ===
+        DefaultTableModel tableModel = new DefaultTableModel();
+        tableModel.setColumnIdentifiers(new String[]{"Telefono", "Nombre"});
 
-        JTable nombresTable = new JTable(tableModel);
-        nombresTable.setRowSelectionAllowed(true);
+        for (String t : contactos.keySet()) {
+            tableModel.addRow(new Object[]{t, contactos.get(t)});
+        }
+
+        JTable nombresTable = new JTable(tableModel) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        nombresTable.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        nombresTable.setRowHeight(24);
+        nombresTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
         nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        nombresTable.setGridColor(Color.LIGHT_GRAY);
+        nombresTable.setShowGrid(true);
+
+        nombresTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                int row = nombresTable.rowAtPoint(e.getPoint());
+                if (row >= 0) {
+                    if (nombresTable.isRowSelected(row)) {
+                        nombresTable.removeRowSelectionInterval(row, row);
+                    } else {
+                        nombresTable.addRowSelectionInterval(row, row);
+                    }
+                }
+            }
+        });
+
         TableColumnModel tcm = nombresTable.getColumnModel();
-        tcm.removeColumn( tcm.getColumn(0));
+        tcm.removeColumn(tcm.getColumn(0)); // Oculta teléfono
 
         JScrollPane scrollPane = new JScrollPane(nombresTable);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Selecciona contactos"));
         grupo.add(scrollPane, BorderLayout.CENTER);
 
-        // Parte inferior: botones
+// === PANEL INFERIOR: Botones ===
         JPanel bottomPanel = new JPanel();
+        bottomPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 20, 10));
+
         JButton confirmarButton = new JButton("Confirmar");
         JButton cancelarButton = new JButton("Cancelar");
+
+        confirmarButton.setPreferredSize(new Dimension(120, 30));
+        cancelarButton.setPreferredSize(new Dimension(120, 30));
+
         bottomPanel.add(confirmarButton);
         bottomPanel.add(cancelarButton);
         grupo.add(bottomPanel, BorderLayout.SOUTH);
 
-        grupo.setVisible(true);
-
-        confirmarButton.addActionListener((ActionEvent _) -> {
+// === EVENTOS ===
+        confirmarButton.addActionListener(_ -> {
             int[] filasSeleccionadas = nombresTable.getSelectedRows();
-            String nombreGrupo = nombreGrupoField.getText();
+            String nombreGrupo = nombreGrupoField.getText().trim();
 
-            for (int fila : filasSeleccionadas) {
-                Integer conversationId = Integer.parseInt(nombresTable.getModel().getValueAt(fila, 0).toString());
-                String telefono = conversaciones.get(conversationId);
-
-                usuarios.add(telefono);
-            }
-
-            if (nombreGrupo.isBlank()) {
-                JOptionPane.showMessageDialog(this, "Ingresa un nombre");
+            if (nombreGrupo.isEmpty()) {
+                JOptionPane.showMessageDialog(grupo, "Ingresa un nombre para el grupo.", "Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
+            for (int fila : filasSeleccionadas) {
+                String telefono = tableModel.getValueAt(fila, 0).toString();
+                usuarios.add(telefono);
+            }
+
             if (usuarios.size() < 2) {
-                JOptionPane.showMessageDialog(this, "Selecciona usuarios");
+                JOptionPane.showMessageDialog(grupo, "Selecciona al menos un contacto.", "Advertencia", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
@@ -504,9 +561,10 @@ public class GUI extends JFrame {
             grupo.dispose();
         });
 
-        cancelarButton.addActionListener((ActionEvent _) -> {
-            grupo.dispose();
-        });
+        cancelarButton.addActionListener(_ -> grupo.dispose());
+
+        grupo.setVisible(true);
+
 
     }
 
@@ -524,6 +582,24 @@ public class GUI extends JFrame {
 
         if(telefonoDestino.equals(loginInfo.getTelefono())){
             JOptionPane.showMessageDialog(this, "No puedes añadir tu propio número.");
+            return;
+        }
+
+        RequestNuevoDM(telefonoDestino, loginInfo.getNombre());
+    }
+
+    private static void crearDM(String Telefono) {
+        String telefonoDestino = JOptionPane.showInputDialog(frame, "Número del usuario con quien quieres chatear:", Telefono);
+
+        if(telefonoDestino == null) return;
+
+        if (telefonoDestino.isBlank()) {
+            JOptionPane.showMessageDialog(frame, "Ingresa un teléfono");
+            return;
+        }
+
+        if(telefonoDestino.equals(loginInfo.getTelefono())){
+            JOptionPane.showMessageDialog(frame, "No puedes añadir tu propio número.");
             return;
         }
 
