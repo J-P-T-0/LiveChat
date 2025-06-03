@@ -3,14 +3,15 @@ package Interfaz;
 import Respuestas.*;
 
 import javax.swing.*;
-import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 import java.awt.*;
-import java.io.IOException;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
-import static Main.Conexion.*;
 import static Main.CreateRequests.*;
 
 public class GUI extends JFrame {
@@ -20,33 +21,44 @@ public class GUI extends JFrame {
     private static DefaultTableModel modeloConversaciones;
 
     //Modelo para modificar la tabla de mensajes
+    private static JPanel mensajesPanel;
+    private static JScrollPane scrollMensajes;
     private static DefaultTableModel modeloMensajes;
+
+    //Modelo para mostrar los usuarios conectados
+    private static JList<String> listaUsuarios;
+    private static DefaultListModel<String> modeloUsuariosConectados;
 
     //Mensaje
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static Map<String, Integer> conversaciones;
+    private static HashMap<String, String> contactos;
+    private static HashMap<Integer, String> conversaciones;
 
     private static GUI frame;
 
     //constructor
     public GUI(LoginAuth loginInfo) {
         GUI.loginInfo = loginInfo;
+        contactos = new HashMap<>();
         conversaciones = new HashMap<>();
         initComponents();
         frame = this;
+        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
 
         //evento para cargar conversaciones
         RequestConversaciones();
+        RequestGetUsusEnLinea();
     }
-
 
     //GUI
     private void initComponents() {
+        int heightOfFrame = 600;
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(800, 600);
+        setSize(800, heightOfFrame);
         setTitle("Conversaciones de " + loginInfo.getNombre());
+        setResizable(false);
 
 // === PANEL PRINCIPAL ===
         JPanel panelPrincipal = new JPanel();
@@ -58,7 +70,7 @@ public class GUI extends JFrame {
 
 // === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
+        modeloConversaciones.setColumnIdentifiers(new String[]{"ID","Nombre"});
         tablaConversaciones = new JTable(modeloConversaciones) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -66,6 +78,8 @@ public class GUI extends JFrame {
             }
         };
         tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
+        TableColumnModel tcm = tablaConversaciones.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
 
         JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
         JPanel panelConversaciones = new JPanel();
@@ -75,12 +89,12 @@ public class GUI extends JFrame {
         panelConversaciones.add(scrollConversaciones, BorderLayout.CENTER);
 
 // === PANEL DE MENSAJES ===
-        modeloMensajes = new DefaultTableModel();
-        modeloMensajes.setColumnIdentifiers(new String[]{"Remitente", "Mensaje", "Fecha"});
-        JTable tablaMensajes = new JTable(modeloMensajes);
-        tablaMensajes.setEnabled(false);
+        mensajesPanel = new JPanel();
+        mensajesPanel.setLayout(new BoxLayout(mensajesPanel, BoxLayout.Y_AXIS));
+        scrollMensajes = new JScrollPane(mensajesPanel);
+        scrollMensajes.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 
-        JScrollPane scrollMensajes = new JScrollPane(tablaMensajes);
+
         JPanel panelMensajes = new JPanel();
         panelMensajes.setLayout(new BorderLayout());
         panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
@@ -104,20 +118,41 @@ public class GUI extends JFrame {
         btnEnviar.addActionListener(_ -> enviarMensaje());
 
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
+        int localwidth = 200;
         JPanel panelDerecho = new JPanel();
         panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
         panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        panelDerecho.setPreferredSize(new Dimension(150, 0));
+        panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
+        JPanel panelBotones = new JPanel();
+        panelBotones.setLayout(new GridLayout(2,1,0,10));
+        panelBotones.setPreferredSize(new Dimension(localwidth, 0));
         JButton btnNuevoChat = new JButton("Nuevo Chat ");
-        btnNuevoChat.setPreferredSize(new Dimension(150, 0));
+        btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
+        btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
+        panelBotones.add(btnNuevoChat);
+        panelBotones.add(btnNuevoGrupo);
 
+        //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
+        listaUsuarios = new JList<>();
+        modeloUsuariosConectados= new DefaultListModel<>();
+        listaUsuarios.setModel(modeloUsuariosConectados);
+        listaUsuarios.setFixedCellWidth(localwidth);
+        listaUsuarios.setFixedCellHeight(20);
+        listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
+        listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
 
-        panelDerecho.add(btnNuevoChat);
+        JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
+        scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
+        scrollUsuarios.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollUsuarios.setBorder(BorderFactory.createTitledBorder("Usuarios conectados"));
+
+        panelDerecho.add(panelBotones);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
-        panelDerecho.add(btnNuevoGrupo);
+        panelDerecho.add(scrollUsuarios);
 
     // === ENSAMBLADO FINAL ===
         panelPrincipal.add(panelCentro, BorderLayout.CENTER);
@@ -138,40 +173,79 @@ public class GUI extends JFrame {
 
     }
 
+    private static void copiarTexto() {
+        String selectedValue = listaUsuarios.getSelectedValue(); // Obtener el valor seleccionado
+
+        if (selectedValue != null) {
+            StringSelection stringSelection = new StringSelection(selectedValue);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            System.out.println("Copiado: " + selectedValue);
+        }
+    }
+
+    //Funcion de actualizacion de los usuarios
+    public static void RefreshUsuariosConectados(ReturnUsusEnLinea respuesta){
+        modeloUsuariosConectados.clear();
+        for(String u: respuesta.getUsuariosEnLinea().keySet()){
+            if(u.equals(loginInfo.getTelefono())) continue;
+
+            modeloUsuariosConectados.addElement(contactos.getOrDefault(u, u));
+        }
+    }
+
     /*Funciones ya del chat*/
 
     public static void cargarConversaciones(ReturnConversaciones respuesta) {
 
         modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
         for (DatosConversacion conv : respuesta.getDatosConversacion()) {
-            String destinatario = " ";
 
             if (!conv.isEsGrupo()) {
+                String destinatario = " ";
+                String telefono = " ";
                 for(String p: conv.getParticipantes()) {
                     if(!p.equals(loginInfo.getNombre())) {
                         destinatario = p;
-                        break;
                     }
                 }
-                conversaciones.put(destinatario, conv.getId());
+
+                for(String t: conv.getTelefonos()) {
+                    if(!t.equals(loginInfo.getTelefono())) {
+                        telefono = t;
+                    }
+                }
 
                 modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
                         destinatario
                 });
+
+                if(!contactos.containsKey(telefono))
+                    contactos.put(telefono, destinatario);
+
+                if(!conversaciones.containsKey(conv.getId()))
+                    conversaciones.put(conv.getId(), telefono);
+
+            }else{
+                modeloConversaciones.addRow(new Object[]{
+                        conv.getId(),
+                        conv.getNombre()
+                });
             }
-            //Aqui ya con un else nomas y cargas el nombre del grupo
+        }
+
+        for(String u: contactos.keySet()){
+            System.out.println(u + ": " + contactos.get(u));
         }
 
     }
-
 
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-
-        int conversationId = conversaciones.get(destinatario);
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestMensajes(conversationId);
     }
@@ -180,20 +254,45 @@ public class GUI extends JFrame {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
 
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
-        int conversationId = conversaciones.get(destinatario);
         if(respuesta.getConvID() == conversationId) {
-            SwingUtilities.invokeLater(() -> {
-                modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
-                for (DatosMensajes e : respuesta.getDatosMensajes()) {
-                    modeloMensajes.addRow(new Object[]{
-                            e.getNombre(),
-                            e.getMensaje(),
-                            e.getFecha()
-                    });
-                }
-            });
+            mensajesPanel.removeAll(); // Limpia mensajes anteriores
+
+            for (DatosMensajes e : respuesta.getDatosMensajes()) {
+                JPanel burbuja = new JPanel();
+                burbuja.setLayout(new BoxLayout(burbuja, BoxLayout.Y_AXIS));
+                burbuja.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+                burbuja.setBackground(e.getNombre().equals(loginInfo.getNombre()) ? new Color(220, 248, 198) : Color.WHITE);
+
+                JLabel remitente = new JLabel(e.getNombre());
+                remitente.setFont(new Font("Arial", Font.BOLD, 12));
+
+                JTextArea mensaje = new JTextArea(e.getMensaje());
+                mensaje.setFont(new Font("Arial", Font.PLAIN, 14));
+                mensaje.setLineWrap(true);
+                mensaje.setWrapStyleWord(true);
+                mensaje.setEditable(false);
+                mensaje.setOpaque(false);
+
+                JLabel fecha = new JLabel(e.getFecha());
+                fecha.setFont(new Font("Arial", Font.ITALIC, 10));
+                fecha.setHorizontalAlignment(SwingConstants.RIGHT);
+
+                burbuja.add(remitente);
+                burbuja.add(mensaje);
+                burbuja.add(fecha);
+
+                JPanel contenedor = new JPanel(new FlowLayout(e.getNombre().equals(loginInfo.getNombre()) ? FlowLayout.RIGHT : FlowLayout.LEFT));
+                contenedor.add(burbuja);
+                mensajesPanel.add(contenedor);
+            }
+
+            // Refresca la vista
+            mensajesPanel.revalidate();
+            mensajesPanel.repaint();
+            scrollMensajes.getVerticalScrollBar().setValue(scrollMensajes.getVerticalScrollBar().getMaximum());
+
         }
 
     }
@@ -207,8 +306,8 @@ public class GUI extends JFrame {
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
-        int conversationId = conversaciones.get(destinatario);
+
+        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
         RequestEnviarMsg(txtMensaje.getText(), conversationId);
 
@@ -216,8 +315,78 @@ public class GUI extends JFrame {
         cargarMensajes();
     }
 
+    private void crearGrupo() {
+        ArrayList<String> usuarios = new ArrayList<>();
+        usuarios.add(loginInfo.getTelefono());
+
+        JFrame grupo = new JFrame();
+        grupo.setTitle("Crear Grupo");
+        grupo.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        grupo.setSize(400, 300);
+        grupo.setLocationRelativeTo(null); // Centra la ventana
+
+        grupo.setLayout(new BorderLayout(10, 10));
+
+        // Parte superior: nombre del grupo
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(new JLabel("Nombre del grupo:"), BorderLayout.WEST);
+        JTextField nombreGrupoField = new JTextField();
+        topPanel.add(nombreGrupoField, BorderLayout.CENTER);
+        grupo.add(topPanel, BorderLayout.NORTH);
+
+
+        JTable nombresTable = new JTable(modeloConversaciones);
+        nombresTable.setRowSelectionAllowed(true);
+        nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        TableColumnModel tcm = nombresTable.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
+
+        JScrollPane scrollPane = new JScrollPane(nombresTable);
+        grupo.add(scrollPane, BorderLayout.CENTER);
+
+        // Parte inferior: botones
+        JPanel bottomPanel = new JPanel();
+        JButton confirmarButton = new JButton("Confirmar");
+        JButton cancelarButton = new JButton("Cancelar");
+        bottomPanel.add(confirmarButton);
+        bottomPanel.add(cancelarButton);
+        grupo.add(bottomPanel, BorderLayout.SOUTH);
+
+        grupo.setVisible(true);
+
+        confirmarButton.addActionListener((ActionEvent _) -> {
+            int[] filasSeleccionadas = nombresTable.getSelectedRows();
+            String nombreGrupo = nombreGrupoField.getText();
+
+            for (int fila : filasSeleccionadas) {
+                Integer conversationId = Integer.parseInt(nombresTable.getModel().getValueAt(fila, 0).toString());
+                String telefono = conversaciones.get(conversationId);
+
+                usuarios.add(telefono);
+            }
+
+            if (nombreGrupo.isBlank()) {
+                JOptionPane.showMessageDialog(this, "Ingresa un nombre");
+                return;
+            }
+
+            if (usuarios.size() < 2) {
+                JOptionPane.showMessageDialog(this, "Selecciona usuarios");
+                return;
+            }
+
+            RequestNuevoGrupo(nombreGrupo, usuarios);
+            grupo.dispose();
+        });
+
+        cancelarButton.addActionListener((ActionEvent _) -> {
+            grupo.dispose();
+        });
+
+    }
 
     //clase dedicada para la creacion de chats 1v1
+
     private void crearDM() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 
@@ -241,11 +410,33 @@ public class GUI extends JFrame {
         JOptionPane.showMessageDialog(frame, "¡Conversación con " + convID.getDestinatario() + " creada!");
 
         //Añade conversacion al mapa
-        conversaciones.put(convID.getDestinatario(), convID.getConvID());
+        conversaciones.put(convID.getConvID(), convID.getTelDestinatario());
+        contactos.put(convID.getTelDestinatario(), convID.getDestinatario());
 
         // Agregar manualmente la conversación a la tabla
         modeloConversaciones.addRow(new Object[]{
+                convID.getConvID(),
                 convID.getDestinatario()
+        });
+
+        for (String u : contactos.keySet()) {
+            System.out.println(u + ": " + contactos.get(u));
+        }
+
+        RequestGetUsusEnLinea();
+    }
+
+    public static void RefreshConversaciones(GroupParticipants groupParticipants) {
+        // Mostrar mensaje de éxito
+        JOptionPane.showMessageDialog(frame, "¡Grupo " + groupParticipants.getGroupName() + " creado!");
+
+        //Añade conversacion al mapa
+        conversaciones.put(groupParticipants.getGroupID(), groupParticipants.getGroupName());
+
+        // Agregar manualmente la conversación a la tabla
+        modeloConversaciones.addRow(new Object[]{
+                groupParticipants.getGroupID(),
+                groupParticipants.getGroupName()
         });
     }
 

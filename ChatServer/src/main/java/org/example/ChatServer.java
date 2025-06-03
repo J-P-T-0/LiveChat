@@ -1,14 +1,12 @@
 package org.example;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChatServer implements AutoCloseable {
     private int puerto;
@@ -17,11 +15,12 @@ public class ChatServer implements AutoCloseable {
     protected poolConexiones poolConn;
 
     //telefonos como keys
-    public static Map<String, PrintWriter> writers = new HashMap<String, PrintWriter>();
+    public static Map<String, PrintWriter> writers = new ConcurrentHashMap<>();
 
     public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;
         this.poolConn = new poolConexiones();
+        System.out.println("Pool iniciado con éxito");
     }
 
     public void start() {
