@@ -79,6 +79,8 @@ public class Conexion implements Runnable {
 
                             case CloseClient _ -> disconnect();
 
+                            case ReturnUsusEnLinea R -> RefreshUsuariosConectados(R);
+
                             default -> System.out.println("lol");
                         }
                     }
@@ -86,7 +88,7 @@ public class Conexion implements Runnable {
                     lastLinea = linea;
                     lastResponse = Response;
                 } catch (Exception e) {
-                    System.out.println("Error al procesar respuesta" + e.getMessage());
+                    System.out.println("El error en 'Conexion' es: "+e.getMessage());
                 }
             }
         } catch (Exception e) {

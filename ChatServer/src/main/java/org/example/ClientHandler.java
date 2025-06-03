@@ -8,6 +8,8 @@ import java.io.*;
 import java.net.Socket;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 //importar librerias para JSON
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -96,6 +98,8 @@ public class ClientHandler extends Thread {
 
                         case Close closeConn -> closeConn(closeConn);
 
+                        case GetUsusEnLinea _ -> usuariosEnLinea();
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
@@ -122,6 +126,7 @@ public class ClientHandler extends Thread {
                 String nombre = getUsuFromTel(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
                 writers.put(request.getTelefono(), salida);
+                usuariosEnLinea();
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
@@ -200,7 +205,7 @@ public class ClientHandler extends Thread {
         return telefonos;
     }
 
-private void cargarConversaciones() throws SQLException, JsonProcessingException {
+    private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
         String sql = """
@@ -488,12 +493,31 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             salida.close();
             entrada.close();
             socket.close();
+            usuariosEnLinea();
         }catch (Exception e) {
             System.err.println("Error al cerrar conexión: " + e.getMessage());
         }finally {
             for(String s : writers.keySet()){
                 System.out.println(s + ": " + writers.get(s));
             }
+        }
+    }
+
+    private void usuariosEnLinea () throws JsonProcessingException{
+        try{
+            //<telefono, nombre>
+            Map<String, String> nombreDelTelefono= new HashMap<>();
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+                if(writers.get(s) != null) {
+                    nombreDelTelefono.put(s, getUsuFromTel(s));
+                }
+            }
+            for(String s : nombreDelTelefono.keySet()){
+                enviarRespuesta(new ReturnUsusEnLinea(nombreDelTelefono),writers.get(s));
+            }
+        }catch(SQLException e){
+            enviarRespuesta(new Aviso("error","No se pudieron obtener los usuarios en línea."));
         }
     }
 

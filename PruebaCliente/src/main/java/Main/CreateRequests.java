@@ -51,4 +51,8 @@ public class CreateRequests {
     public static void RequestClose(String telefono){
         CallRequest(new Close(telefono));
     }
+
+    public static void RequestGetUsusEnLinea(){
+        CallRequest(new GetUsusEnLinea());
+    }
 }

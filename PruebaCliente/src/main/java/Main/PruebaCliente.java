@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
 
 public class PruebaCliente {
     //Servidor
@@ -116,7 +117,10 @@ public class PruebaCliente {
 /*
     private void crearGrupo(){
         try{
-            String jsonRequest = objectMapper.writeValueAsString(new CrearGrupo("Hola6","1234567890, 567"));
+            ArrayList<String> telefonos = new ArrayList<>();
+            telefonos.add("1234567890");
+            telefonos.add("567");
+            String jsonRequest = objectMapper.writeValueAsString(new CrearGrupo("Hola6",telefonos));
             System.out.println(jsonRequest);
             salida.println(jsonRequest);
 
@@ -158,15 +162,13 @@ public class PruebaCliente {
 
     public static void main(String[] args) {
         PruebaCliente app = new PruebaCliente();
-        app.conectarAServidor();
-        app.login();
-        app.getConversaciones();
-        app.getMensajes();
-        app.enviarMensaje();
-        app.crearConvPriv();
-        //app.crearGrupo();
-        app.marcarLeido();
-        app.getEstadoMensaje();
+        try {
+            Conexion.connect("127.0.0.1",1234);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        CreateRequests.RequestLogin("1234567891","julieta123");
+        CreateRequests.RequestGetUsusEnLinea();
     }
 }
 
