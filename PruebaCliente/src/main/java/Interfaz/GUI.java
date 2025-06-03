@@ -124,12 +124,17 @@ public class GUI extends JFrame {
         panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
+        JPanel panelBotones = new JPanel();
+        panelBotones.setLayout(new GridLayout(2,1,0,10));
+        panelBotones.setPreferredSize(new Dimension(localwidth, 0));
         JButton btnNuevoChat = new JButton("Nuevo Chat ");
         btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
-        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
         btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
+        panelBotones.add(btnNuevoChat);
+        panelBotones.add(btnNuevoGrupo);
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
         listaUsuarios = new JList<>();
@@ -145,9 +150,7 @@ public class GUI extends JFrame {
         scrollUsuarios.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollUsuarios.setBorder(BorderFactory.createTitledBorder("Usuarios conectados"));
 
-        panelDerecho.add(btnNuevoChat);
-        panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
-        panelDerecho.add(btnNuevoGrupo);
+        panelDerecho.add(panelBotones);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
         panelDerecho.add(scrollUsuarios);
 
