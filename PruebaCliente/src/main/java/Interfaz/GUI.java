@@ -3,9 +3,7 @@ package Interfaz;
 import Respuestas.*;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableModel;
+import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.datatransfer.Clipboard;
@@ -13,6 +11,8 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 import static Main.CreateRequests.*;
 
@@ -36,15 +36,20 @@ public class GUI extends JFrame {
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
     private static HashMap<String, String> contactos;
     private static HashMap<Integer, String> conversaciones;
+    private static final Set<Integer> conversacionesConMensajesNuevos = new HashSet<>();
+
 
     private static GUI frame;
 
     //constructor
     public GUI(LoginAuth loginInfo) {
         GUI.loginInfo = loginInfo;
+
         contactos = new HashMap<>();
         conversaciones = new HashMap<>();
+
         initComponents();
+
         frame = this;
         frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
 
@@ -68,7 +73,7 @@ public class GUI extends JFrame {
 
 // === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"ID","Nombre"});
+        modeloConversaciones.setColumnIdentifiers(new String[]{"ID","Contactos"});
         tablaConversaciones = new JTable(modeloConversaciones) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -80,8 +85,75 @@ public class GUI extends JFrame {
                 cargarMensajes();
             }
         });
+
+
+
+        tablaConversaciones.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        tablaConversaciones.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        tablaConversaciones.setRowHeight(30); // Aumenta la altura para que se vea mejor
+        tablaConversaciones.setShowGrid(false); // Sin líneas entre celdas
+        tablaConversaciones.setIntercellSpacing(new Dimension(0, 0));
+
+// Centramos el texto en todas las celdas
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        tablaConversaciones.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
+        tablaConversaciones.getColumnModel().getColumn(1).setCellRenderer(centerRenderer);
+
+// Color de encabezado
+        JTableHeader header = tablaConversaciones.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        header.setBackground(new Color(50, 50, 50));
+        header.setForeground(Color.WHITE);
+
         TableColumnModel tcm = tablaConversaciones.getColumnModel();
         tcm.removeColumn( tcm.getColumn(0));
+
+        tablaConversaciones.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                           boolean hasFocus, int row, int column) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+                String nombre = value.toString();
+                int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(row, 0).toString());
+
+                // Fondo por conexión
+                boolean conectado = false;
+                for (int i = 0; i < modeloUsuariosConectados.size(); i++) {
+                    if (modeloUsuariosConectados.get(i).equals(nombre)) {
+                        conectado = true;
+                        break;
+                    }
+                }
+
+                if (isSelected) {
+                    label.setBackground(table.getSelectionBackground());
+                    label.setForeground(table.getSelectionForeground());
+                } else if (conectado) {
+                    label.setBackground(new Color(220, 255, 220));
+                    label.setForeground(Color.BLACK);
+                } else {
+                    label.setBackground(Color.WHITE);
+                    label.setForeground(Color.BLACK);
+                }
+
+                // Marca visual si hay mensaje nuevo
+                if (conversacionesConMensajesNuevos.contains(conversationId)) {
+                    label.setText("● " + nombre); // marca con punto
+                    label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                } else {
+                    label.setText(nombre);
+                    label.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+                }
+
+                label.setHorizontalAlignment(SwingConstants.CENTER);
+                label.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
+                return label;
+            }
+        });
+
+
 
         JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
         JPanel panelConversaciones = new JPanel();
@@ -130,7 +202,6 @@ public class GUI extends JFrame {
         panelCentro.setResizeWeight(0.025);
 
 
-
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
         int localwidth = 200;
         JPanel panelDerecho = new JPanel();
@@ -166,6 +237,8 @@ public class GUI extends JFrame {
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
         listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
+
+
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
@@ -213,6 +286,8 @@ public class GUI extends JFrame {
 
             modeloUsuariosConectados.addElement(contactos.getOrDefault(u, u));
         }
+        tablaConversaciones.revalidate();
+        tablaConversaciones.repaint();
     }
 
     /*Funciones ya del chat*/
@@ -260,6 +335,8 @@ public class GUI extends JFrame {
             System.out.println(u + ": " + contactos.get(u));
         }
 
+        tablaConversaciones.revalidate();
+        tablaConversaciones.repaint();
     }
 
     private void cargarMensajes() {
@@ -275,51 +352,58 @@ public class GUI extends JFrame {
 
     public static void RefreshMensajes(ReturnMensajes respuesta) {
         int fila = tablaConversaciones.getSelectedRow();
-        if (fila == -1) return;
+        int conversationIdActual = (fila != -1)
+                ? Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString())
+                : -1;
 
-        int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
-
-        if(respuesta.getConvID() == conversationId) {
-            mensajesPanel.removeAll(); // Limpia mensajes anteriores
-
-            for (DatosMensajes e : respuesta.getDatosMensajes()) {
-                JPanel burbuja = new JPanel();
-                burbuja.setLayout(new BoxLayout(burbuja, BoxLayout.Y_AXIS));
-                burbuja.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-                burbuja.setBackground(e.getNombre().equals(loginInfo.getNombre()) ? new Color(220, 248, 198) : Color.WHITE);
-
-                JLabel remitente = new JLabel(e.getNombre());
-                remitente.setFont(new Font("Arial", Font.BOLD, 12));
-
-                JTextArea mensaje = new JTextArea(e.getMensaje());
-                mensaje.setFont(new Font("Arial", Font.PLAIN, 14));
-                mensaje.setLineWrap(true);
-                mensaje.setWrapStyleWord(true);
-                mensaje.setEditable(false);
-                mensaje.setOpaque(false);
-
-                JLabel fecha = new JLabel(e.getFecha());
-                fecha.setFont(new Font("Arial", Font.ITALIC, 10));
-                fecha.setHorizontalAlignment(SwingConstants.RIGHT);
-
-                burbuja.add(remitente);
-                burbuja.add(mensaje);
-                burbuja.add(fecha);
-
-                JPanel contenedor = new JPanel(new FlowLayout(e.getNombre().equals(loginInfo.getNombre()) ? FlowLayout.RIGHT : FlowLayout.LEFT));
-                contenedor.add(burbuja);
-                mensajesPanel.add(contenedor);
-            }
-
-            // Refresca la vista
-            mensajesPanel.revalidate();
-            mensajesPanel.repaint();
-            SwingUtilities.invokeLater(() -> {
-                JScrollBar vertical = scrollMensajes.getVerticalScrollBar();
-                vertical.setValue(vertical.getMaximum());
-            });
-
+        // Si el mensaje es para otra conversación no visible, lo marcamos como nuevo
+        if (respuesta.getConvID() != conversationIdActual) {
+            conversacionesConMensajesNuevos.add(respuesta.getConvID());
+            tablaConversaciones.repaint();
+            return;
         }
+
+        // Si sí está visible, actualiza el panel de mensajes
+        conversacionesConMensajesNuevos.remove(respuesta.getConvID());
+
+        mensajesPanel.removeAll();
+        for (DatosMensajes e : respuesta.getDatosMensajes()) {
+            JPanel burbuja = new JPanel();
+            burbuja.setLayout(new BoxLayout(burbuja, BoxLayout.Y_AXIS));
+            burbuja.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            burbuja.setBackground(e.getNombre().equals(loginInfo.getNombre()) ? new Color(220, 248, 198) : Color.WHITE);
+
+            JLabel remitente = new JLabel(e.getNombre());
+            remitente.setFont(new Font("Arial", Font.BOLD, 12));
+
+            JTextArea mensaje = new JTextArea(e.getMensaje());
+            mensaje.setFont(new Font("Arial", Font.PLAIN, 14));
+            mensaje.setLineWrap(true);
+            mensaje.setWrapStyleWord(true);
+            mensaje.setEditable(false);
+            mensaje.setOpaque(false);
+
+            JLabel fecha = new JLabel(e.getFecha());
+            fecha.setFont(new Font("Arial", Font.ITALIC, 10));
+            fecha.setHorizontalAlignment(SwingConstants.RIGHT);
+
+            burbuja.add(remitente);
+            burbuja.add(mensaje);
+            burbuja.add(fecha);
+
+            JPanel contenedor = new JPanel(new FlowLayout(e.getNombre().equals(loginInfo.getNombre()) ? FlowLayout.RIGHT : FlowLayout.LEFT));
+            contenedor.add(burbuja);
+            mensajesPanel.add(contenedor);
+        }
+
+        mensajesPanel.revalidate();
+        mensajesPanel.repaint();
+        SwingUtilities.invokeLater(() -> {
+            JScrollBar vertical = scrollMensajes.getVerticalScrollBar();
+            vertical.setValue(vertical.getMaximum());
+        });
+
+        tablaConversaciones.repaint(); // refresca la tabla por si se quitó la marca
 
     }
 
@@ -400,6 +484,7 @@ public class GUI extends JFrame {
                 JOptionPane.showMessageDialog(this, "Selecciona usuarios");
                 return;
             }
+
 
             RequestNuevoGrupo(nombreGrupo, usuarios);
             grupo.dispose();
