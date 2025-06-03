@@ -158,6 +158,7 @@ public class Registro extends JFrame {
         JOptionPane.showMessageDialog(frame, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.INFORMATION_MESSAGE);
         if (aviso.getEstado().equals("éxito")) {
             frame.dispose();
+            new ChatLogin().setVisible(true);
         }
     }
 }

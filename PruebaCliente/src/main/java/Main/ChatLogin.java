@@ -26,6 +26,8 @@ public class ChatLogin extends JFrame {
     private void conectarAServidor() {
         try {
             Conexion.connect("147.185.221.28", 37296);
+            //Conexion.connect("127.0.0.1", 1234);
+
         } catch (Exception e) {
             GUI.MostrarAviso(new Aviso("Error", "Error al conectar con el servidor."));
         }
@@ -93,6 +95,7 @@ public class ChatLogin extends JFrame {
         btnLogin.setForeground(Color.WHITE);
         btnLogin.setOpaque(true);
         btnLogin.setBorderPainted(false);
+        btnLogin.addActionListener(_ -> startLogin());
         panelFormulario.add(btnLogin);
         // Panel separado para la parte de registro
         JPanel panelRegistro = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
