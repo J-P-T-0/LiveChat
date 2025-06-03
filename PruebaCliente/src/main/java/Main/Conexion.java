@@ -10,6 +10,7 @@ import java.net.Socket;
 
 import static Interfaz.GUI.*;
 import static Main.ChatLogin.confirmLogin;
+import static Main.CreateRequests.RequestConversaciones;
 import static Main.CreateRequests.lastRequest;
 
 public class Conexion implements Runnable {
@@ -69,7 +70,10 @@ public class Conexion implements Runnable {
 
                             case ReturnConversaciones R -> cargarConversaciones(R);
 
-                            case GroupParticipants R -> RefreshConversaciones(R);
+                            case GroupParticipants R -> {
+                                RefreshConversaciones(R);
+                                RequestConversaciones();//Actualizar conversacionesUsu
+                            }
 
                             case ReturnConvID R -> RefreshConversaciones(R);
 
