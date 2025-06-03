@@ -140,7 +140,7 @@ public class GUI extends JFrame {
 
         JPanel panelBotones = new JPanel();
         panelBotones.setLayout(new BoxLayout(panelBotones, BoxLayout.Y_AXIS));
-        panelBotones.setPreferredSize(new Dimension(localwidth, 0));
+        panelBotones.setPreferredSize(new Dimension(localwidth, 100));
 
         JButton btnNuevoChat = new JButton("Nuevo Chat");
         btnNuevoChat.setMaximumSize(new Dimension(localwidth, 40)); // Alto deseado
