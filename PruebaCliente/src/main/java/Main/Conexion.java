@@ -43,42 +43,50 @@ public class Conexion implements Runnable {
     @Override
     public void run() {
         try {
+            String lastLinea = "";
+            Respuesta lastResponse = null;
             String linea;
             while ((linea = entrada.readLine()) != null) {
                 try {
                     System.out.println(linea);
+
                     //Almacena la respuesta mandada por el server
                     Respuesta Response = objectMapper.readValue(linea, Respuesta.class);
 
-                    if(lastRequest.getComando().equals("REGISTRARSE") && Response instanceof Aviso aviso) {
-                        Registro.confirmRegistro(aviso);
-                        continue;
+                    if(!lastLinea.equals(linea) && !Response.equals(lastResponse)) {
+                        if(lastRequest.getComando().equals("REGISTRARSE") && Response instanceof Aviso aviso) {
+                            Registro.confirmRegistro(aviso);
+                            continue;
+                        }
+
+                        if(lastRequest.getComando().equals("LOGIN") && Response instanceof Aviso aviso) {
+                            ChatLogin.warningRegistro(aviso);
+                            continue;
+                        }
+
+                        switch (Response) {
+                            case LoginAuth R -> confirmLogin(R);
+
+                            case ReturnConversaciones R -> cargarConversaciones(R);
+
+                            case GroupParticipants R -> RefreshConversaciones(R);
+
+                            case ReturnConvID R -> RefreshConversaciones(R);
+
+                            case ReturnMensajes R -> RefreshMensajes(R);
+
+                            case Aviso aviso -> MostrarAviso(aviso);
+
+                            case CloseClient _ -> disconnect();
+
+                            default -> System.out.println("lol");
+                        }
                     }
 
-                    if(lastRequest.getComando().equals("LOGIN") && Response instanceof Aviso aviso) {
-                        ChatLogin.warningRegistro(aviso);
-                        continue;
-                    }
-
-                    switch (Response) {
-                        case LoginAuth R -> confirmLogin(R);
-
-                        case ReturnConversaciones R -> cargarConversaciones(R);
-
-                        case GroupParticipants _ -> System.out.println("group");
-
-                        case ReturnConvID R -> RefreshConversaciones(R);
-
-                        case ReturnMensajes R -> RefreshMensajes(R);
-
-                        case Aviso aviso -> MostrarAviso(aviso);
-
-                        case CloseClient _ -> disconnect();
-
-                        default -> System.out.println("lol");
-                    }
+                    lastLinea = linea;
+                    lastResponse = Response;
                 } catch (Exception e) {
-                    System.out.println("lol q mal");
+                    System.out.println("Error al procesar respuesta" + e.getMessage());
                 }
             }
         } catch (Exception e) {

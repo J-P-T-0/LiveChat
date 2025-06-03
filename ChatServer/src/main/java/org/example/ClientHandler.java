@@ -61,6 +61,7 @@ public class ClientHandler extends Thread {
                 try {
                     // migrar_Todo a JSON :,,,D
                     //Convierte el string que recibe los mensajes de clientes y los convierte al formato Json (un arbol de objetos)
+                    System.out.println(linea);
 
                     //Almacena el request pedido de lado de cliente
                     Request newRequest = traductorJson.readValue(linea, Request.class);
@@ -218,8 +219,9 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             ArrayList<DatosConversacion> datosConv = new ArrayList<>();
 
             while (rs.next()) {
-                ArrayList<String> participantes = getParticipantes(rs.getInt("id"));
-                ArrayList<String> telefonos  = getTelParticipantes(rs.getInt("id"));
+                int id = rs.getInt("id");
+                ArrayList<String> participantes = getParticipantes(id);
+                ArrayList<String> telefonos = getTelParticipantes(id);
                 //conv es como crear un objeto de tipo conversacion
                 datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes, telefonos));
             }
@@ -396,11 +398,11 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                             insertStmt.setInt(4, idDestino);
                             insertStmt.executeUpdate();
 
-                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario));
+                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario, request.getTelefonoDestino()));
 
                             //Se asegura de que el destinatario esté en linea para evitar errores
                             if(writers.containsKey(request.getTelefonoDestino())) {
-                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente), writers.get(request.getTelefonoDestino()));
+                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente, request.getTelefonoDestino()), writers.get(request.getTelefonoDestino()));
                             }
                         }
                     }
@@ -439,32 +441,27 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         int idConversacion = Clave.getInt(1);
                         ArrayList<Integer> IDs = new ArrayList<>();
 
-                        for(String nombre : request.getUsuarios()){
-                            IDs.add(getUsuFromTel());
+                        for(String tel : request.getTelefonos()){
+                            System.out.println(getIDFromTel(tel));
+                            IDs.add(getIDFromTel(tel));
                         }
 
                         // Inserta todos los participantes válidos
                         StringBuilder sb = new StringBuilder("INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES ");
-                        for (int i = 0; i < request.getUsuarios().size(); i++) {
+                        for (int i = 0; i < request.getTelefonos().size(); i++) {
                             sb.append("(?, ?)");
-                            if (i < request.getUsuarios().size() - 1) sb.append(", ");
+                            if (i < request.getTelefonos().size() - 1) sb.append(", ");
                         }
 
                         try (PreparedStatement insertar = conn.prepareStatement(sb.toString())) {
-                            ArrayList<String> ID_telefonosValidos = new ArrayList<>();
                             int idx = 1;
                             for (Integer idUsuario : IDs) {
                                 insertar.setInt(idx++, idConversacion);
                                 insertar.setInt(idx++, idUsuario);
-
-                                String telID = getTelFromID(idUsuario);
-                                if(telID != null) {
-                                    ID_telefonosValidos.add(telID);
-                                }
                             }
                             insertar.executeUpdate();
 
-                            enviarRespuesta(new GroupParticipants(idConversacion, ID_telefonosValidos, request.getNombreGrupo()));
+                            enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion), request.getNombreGrupo()));
                         }
                     }
                 }
@@ -732,5 +729,26 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
 
+    private Integer getIDFromTel(String tel) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = "SELECT id FROM usuarios WHERE telefono = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, tel);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getInt("id");
+                }
+            } catch (SQLException e) {
+                enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
+                throw e;
+            }
+            return null;
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
     
 }

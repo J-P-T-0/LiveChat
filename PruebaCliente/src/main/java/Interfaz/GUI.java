@@ -9,7 +9,6 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 
 import static Main.CreateRequests.*;
 
@@ -27,7 +26,8 @@ public class GUI extends JFrame {
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static Map<String, String> contactos;
+    private static HashMap<String, String> contactos;
+    private static HashMap<Integer, String> conversaciones;
 
     private static GUI frame;
 
@@ -35,6 +35,7 @@ public class GUI extends JFrame {
     public GUI(LoginAuth loginInfo) {
         GUI.loginInfo = loginInfo;
         contactos = new HashMap<>();
+        conversaciones = new HashMap<>();
         initComponents();
         frame = this;
 
@@ -150,16 +151,30 @@ public class GUI extends JFrame {
 
             if (!conv.isEsGrupo()) {
                 String destinatario = " ";
+                String telefono = " ";
                 for(String p: conv.getParticipantes()) {
                     if(!p.equals(loginInfo.getNombre())) {
                         destinatario = p;
-                        break;
                     }
                 }
+
+                for(String t: conv.getTelefonos()) {
+                    if(!t.equals(loginInfo.getTelefono())) {
+                        telefono = t;
+                    }
+                }
+
                 modeloConversaciones.addRow(new Object[]{
                         conv.getId(),
                         destinatario
                 });
+
+                if(!contactos.containsKey(telefono))
+                    contactos.put(telefono, destinatario);
+
+                if(!conversaciones.containsKey(conv.getId()))
+                    conversaciones.put(conv.getId(), telefono);
+
             }else{
                 modeloConversaciones.addRow(new Object[]{
                         conv.getId(),
@@ -220,7 +235,7 @@ public class GUI extends JFrame {
 
     private void crearGrupo() {
         ArrayList<String> usuarios = new ArrayList<>();
-        usuarios.add(loginInfo.getNombre());
+        usuarios.add(loginInfo.getTelefono());
 
         JFrame grupo = new JFrame();
         grupo.setTitle("Crear Grupo");
@@ -241,6 +256,8 @@ public class GUI extends JFrame {
         JTable nombresTable = new JTable(modeloConversaciones);
         nombresTable.setRowSelectionAllowed(true);
         nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        TableColumnModel tcm = nombresTable.getColumnModel();
+        tcm.removeColumn( tcm.getColumn(0));
 
         JScrollPane scrollPane = new JScrollPane(nombresTable);
         grupo.add(scrollPane, BorderLayout.CENTER);
@@ -260,8 +277,10 @@ public class GUI extends JFrame {
             String nombreGrupo = nombreGrupoField.getText();
 
             for (int fila : filasSeleccionadas) {
-                String nombre = nombresTable.getValueAt(fila, 0).toString();
-                usuarios.add(nombre);
+                Integer conversationId = Integer.parseInt(nombresTable.getModel().getValueAt(fila, 0).toString());
+                String telefono = conversaciones.get(conversationId);
+
+                usuarios.add(telefono);
             }
 
             if (nombreGrupo.isBlank()) {
@@ -309,11 +328,27 @@ public class GUI extends JFrame {
         JOptionPane.showMessageDialog(frame, "¡Conversación con " + convID.getDestinatario() + " creada!");
 
         //Añade conversacion al mapa
-        //contactos.put(convID.getDestinatario(), convID.getConvID());
+        conversaciones.put(convID.getConvID(), convID.getTelDestinatario());
+        contactos.put(convID.getTelDestinatario(), convID.getDestinatario());
 
         // Agregar manualmente la conversación a la tabla
         modeloConversaciones.addRow(new Object[]{
+                convID.getConvID(),
                 convID.getDestinatario()
+        });
+    }
+
+    public static void RefreshConversaciones(GroupParticipants groupParticipants) {
+        // Mostrar mensaje de éxito
+        JOptionPane.showMessageDialog(frame, "¡Grupo " + groupParticipants.getGroupName() + " creado!");
+
+        //Añade conversacion al mapa
+        conversaciones.put(groupParticipants.getGroupID(), groupParticipants.getGroupName());
+
+        // Agregar manualmente la conversación a la tabla
+        modeloConversaciones.addRow(new Object[]{
+                groupParticipants.getGroupID(),
+                groupParticipants.getGroupName()
         });
     }
 
