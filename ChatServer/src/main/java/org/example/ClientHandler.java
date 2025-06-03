@@ -118,7 +118,7 @@ public class ClientHandler extends Thread {
     private void login(Login request) throws JsonProcessingException {
         try {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
-                String nombre = getNombreUsu(request.getTelefono());
+                String nombre = getUsuFromTel(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
                 writers.put(request.getTelefono(), salida);
             } else {
@@ -171,6 +171,34 @@ public class ClientHandler extends Thread {
         return participantes;
     }
 
+    private ArrayList<String> getTelParticipantes(int conv_id)  throws SQLException{
+        Connection conn = poolConexiones.obtenerConexion();
+        ArrayList<String> telefonos = new ArrayList<>();
+
+        String query = """               
+            SELECT u.telefono AS participante
+            FROM conversaciones c
+            INNER JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+            INNER JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+            INNER JOIN usuarios u ON cu2.usuario_id = u.id
+            WHERE cu1.usuario_id = ? AND cu1.conversacion_id = ?
+            LIMIT 0, 50;
+            """;
+
+        //Ejecutar la query
+        PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, usuarioActualID);
+        stmt.setInt(2, conv_id);
+        ResultSet rs = stmt.executeQuery();
+        rs.getFetchSize();
+
+        while (rs.next()) {
+            telefonos.add(rs.getString("participante"));
+        }
+
+        return telefonos;
+    }
+
 private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
@@ -191,8 +219,9 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
 
             while (rs.next()) {
                 ArrayList<String> participantes = getParticipantes(rs.getInt("id"));
+                ArrayList<String> telefonos  = getTelParticipantes(rs.getInt("id"));
                 //conv es como crear un objeto de tipo conversacion
-                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes));
+                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes, telefonos));
             }
             enviarRespuesta(new ReturnConversaciones(datosConv));
         }catch (SQLException e) {
@@ -295,15 +324,15 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                 poolConexiones.liberarConexion(conn);
             }
 
-            ArrayList<String> participantes = getParticipantes(request.getConversacionID());
+            ArrayList<String> telefonos = getTelParticipantes(request.getConversacionID());
 
             for(String s : writers.keySet()){
                 System.out.println(s + ": " + writers.get(s));
             }
 
-            for(String p : participantes){
-                System.out.println(p);
-                String tel = getTelFromNombre(p);
+            for(String t : telefonos){
+                System.out.println(t);
+                String tel = t;
                 //Se asegura de que el destinatario esté en linea para evitar errores
                 if(writers.containsKey(tel)) {
                     getMensajes(new GetMensajes(request.getConversacionID()), tel);
@@ -356,7 +385,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         int nuevoIdConversacion = claves.getInt(1);
 
                         String remitente = request.getRemitente();
-                        String destinatario = getNombreUsu(request.getTelefonoDestino());
+                        String destinatario = getUsuFromTel(request.getTelefonoDestino());
 
                         // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
                         String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
@@ -398,35 +427,6 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             conn.setAutoCommit(false); // Inicia transacción para el grupo
 
             try {
-                // Lista de IDs válidos (inicia con el creador)
-                ArrayList<Integer> participantesValidos = new ArrayList<>();
-                participantesValidos.add(usuarioActualID);
-
-                ArrayList<String> telefonosInvalidos = new ArrayList<>();
-
-
-                // Validar y recolectar IDs por teléfono
-                for (String telefono : request.getNumsTelefono()) {
-                    String tel = telefono.trim();
-                    Integer id = validarTelefono(tel);
-                    if (id != null) {
-                        participantesValidos.add(id);
-                    } else if (!tel.isBlank()){
-                        telefonosInvalidos.add(tel);
-                    }
-                }
-
-                // Si no hay más participantes que el creador, aborta
-                if (participantesValidos.size() < 2) {
-                    enviarRespuesta(new Aviso("error", "No se puede crear un grupo sin participantes válidos"));
-                    return;
-                }
-
-                // Notifica advertencia si hay errores
-                if (!telefonosInvalidos.isEmpty()) {
-                    enviarRespuesta(new NumsInvalidos(telefonosInvalidos));
-                }
-
                 // Crea conversación tipo grupo
                 String crearGrupo = "INSERT INTO conversaciones (nombre, isGrupo) VALUES (?, ?)";
                 try (PreparedStatement stmt = conn.prepareStatement(crearGrupo, Statement.RETURN_GENERATED_KEYS)) {
@@ -434,21 +434,26 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                     stmt.setBoolean(2, true);
                     stmt.executeUpdate();
 
-                    ResultSet claves = stmt.getGeneratedKeys();
-                    if (claves.next()) {
-                        int idConversacion = claves.getInt(1);
+                    ResultSet Clave = stmt.getGeneratedKeys();
+                    if (Clave.next()) {
+                        int idConversacion = Clave.getInt(1);
+                        ArrayList<Integer> IDs = new ArrayList<>();
+
+                        for(String nombre : request.getUsuarios()){
+                            IDs.add(getUsuFromTel());
+                        }
 
                         // Inserta todos los participantes válidos
                         StringBuilder sb = new StringBuilder("INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES ");
-                        for (int i = 0; i < participantesValidos.size(); i++) {
+                        for (int i = 0; i < request.getUsuarios().size(); i++) {
                             sb.append("(?, ?)");
-                            if (i < participantesValidos.size() - 1) sb.append(", ");
+                            if (i < request.getUsuarios().size() - 1) sb.append(", ");
                         }
 
                         try (PreparedStatement insertar = conn.prepareStatement(sb.toString())) {
                             ArrayList<String> ID_telefonosValidos = new ArrayList<>();
                             int idx = 1;
-                            for (Integer idUsuario : participantesValidos) {
+                            for (Integer idUsuario : IDs) {
                                 insertar.setInt(idx++, idConversacion);
                                 insertar.setInt(idx++, idUsuario);
 
@@ -501,7 +506,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
     *
     * */
 
-    private String getNombreUsu(String telefono) throws SQLException {
+    private String getUsuFromTel(String telefono) throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
         String sql = "SELECT nombre FROM usuarios WHERE telefono = ?";
@@ -727,26 +732,5 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
 
-    private String getTelFromNombre(String nombre) throws SQLException, JsonProcessingException {
-        Connection conn = poolConexiones.obtenerConexion();
-        try {
-            String sql = "SELECT telefono FROM usuarios WHERE nombre = ?";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, nombre);
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    return rs.getString("telefono");
-                }
-            } catch (SQLException e) {
-                enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
-                throw e;
-            }
-            return null;
-        }finally {
-            if (conn != null){
-                poolConexiones.liberarConexion(conn);
-            }
-        }
-    }
     
 }
