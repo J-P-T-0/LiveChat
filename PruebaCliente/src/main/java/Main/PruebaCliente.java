@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
 
 public class PruebaCliente {
     //Servidor
@@ -116,7 +117,10 @@ public class PruebaCliente {
 
     private void crearGrupo(){
         try{
-            String jsonRequest = objectMapper.writeValueAsString(new CrearGrupo("Hola6","1234567890, 567"));
+            ArrayList<String> telefonos = new ArrayList<>();
+            telefonos.add("1234567890");
+            telefonos.add("567");
+            String jsonRequest = objectMapper.writeValueAsString(new CrearGrupo("Hola6",telefonos));
             System.out.println(jsonRequest);
             salida.println(jsonRequest);
 
