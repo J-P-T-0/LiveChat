@@ -135,6 +135,14 @@ modules.xml
 # Azure Toolkit for IntelliJ plugin
 # https://plugins.jetbrains.com/plugin/8053-azure-toolkit-for-intellij
 .idea/**/azureSettings.xml
+/ChatServer/.idea/dataSources/565d70cf-a790-45f2-8bae-48f67c198ec0.xml
+/ChatServer/.idea/dataSources.local.xml
+/.idea/dataSources.xml
+/ChatServer/.idea/dataSources/565d70cf-a790-45f2-8bae-48f67c198ec0/storage_v2/_src_/schema/information_schema.FNRwLQ.meta
+/ChatServer/.idea/dataSources/565d70cf-a790-45f2-8bae-48f67c198ec0/storage_v2/_src_/schema/mysql.osA4Bg.meta
+/ChatServer/.idea/dataSources/565d70cf-a790-45f2-8bae-48f67c198ec0/storage_v2/_src_/schema/performance_schema.kIw0nw.meta
+/.idea/vcs.xml
+/ChatServer/.idea/workspace.xml
 /.idea/dataSources.xml
 /.idea/vcs.xml
 /.idea/.gitignore

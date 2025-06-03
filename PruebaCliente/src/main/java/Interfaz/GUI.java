@@ -18,26 +18,27 @@ import static Main.CreateRequests.*;
 
 public class GUI extends JFrame {
     //Tabla de conversaciones
-    private static LoginAuth loginInfo;
-    private static JTable tablaConversaciones;
+    private static LoginAuth loginInfo;              // Información del usuario
+    private static JTable tablaConversaciones;       // Lista de chats
     private static DefaultTableModel modeloConversaciones;
 
     //Modelo para modificar la tabla de mensajes
-    private static JPanel mensajesPanel;
+    private static JPanel mensajesPanel;            // Panel de mensajes
     private static JScrollPane scrollMensajes;
     private static JPanel panelMensaje;
     //Modelo para mostrar los usuarios conectados
-    private static JList<String> listaUsuarios;
+    private static JList<String> listaUsuarios;     // Lista de usuarios conectados
     private static DefaultListModel<String> modeloUsuariosConectados;
 
     //Mensaje
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static HashMap<String, String> contactos;
-    private static HashMap<Integer, String> conversaciones;
+    private static HashMap<String, String> contactos;       // Mapeo teléfono->nombre
+    private static HashMap<Integer, String> conversaciones; // Mapeo ID->teléfono
     private static final Set<Integer> conversacionesConMensajesNuevos = new HashSet<>();
 
+    private static ArrayList<DatosConversacion> conversacionesUsuario = new ArrayList<>();
 
     private static GUI frame;
 
@@ -85,8 +86,6 @@ public class GUI extends JFrame {
                 cargarMensajes();
             }
         });
-
-
 
         tablaConversaciones.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         tablaConversaciones.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -201,7 +200,6 @@ public class GUI extends JFrame {
         JSplitPane panelCentro = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, panelConversaciones, panelMensajes);
         panelCentro.setResizeWeight(0.025);
 
-
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
         int localwidth = 200;
         JPanel panelDerecho = new JPanel();
@@ -237,8 +235,6 @@ public class GUI extends JFrame {
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
         listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
-
-
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
@@ -293,9 +289,11 @@ public class GUI extends JFrame {
     /*Funciones ya del chat*/
 
     public static void cargarConversaciones(ReturnConversaciones respuesta) {
+        modeloConversaciones.setRowCount(0);
+        conversacionesUsuario.clear(); // Limpiamos la lista de conversaciones usuario
 
-        modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
         for (DatosConversacion conv : respuesta.getDatosConversacion()) {
+            conversacionesUsuario.add(conv); // Guardamos la conversación
 
             if (!conv.isEsGrupo()) {
                 String destinatario = " ";
@@ -363,10 +361,27 @@ public class GUI extends JFrame {
             return;
         }
 
+        mensajesPanel.removeAll();
+        mensajesPanel.setBorder(BorderFactory.createTitledBorder("")); // Título vacío por defecto
+
+        mensajesPanel.removeAll();
+        // Buscar la conversación actual
+        for (DatosConversacion conv : conversacionesUsuario) {
+            if (conv.getId() == conversationIdActual) {
+                boolean esGrupo = conv.isEsGrupo();
+                if (esGrupo) mensajesPanel.setBorder(BorderFactory.createTitledBorder(
+                        "Grupo " + conv.getNombre() + " : " + conv.getParticipantes()
+                ));
+                else mensajesPanel.setBorder(BorderFactory.createTitledBorder(
+                        "Chat con: " + conv.getParticipantes()
+                ));
+                break;
+            }
+        }
+
         // Si sí está visible, actualiza el panel de mensajes
         conversacionesConMensajesNuevos.remove(respuesta.getConvID());
 
-        mensajesPanel.removeAll();
         for (DatosMensajes e : respuesta.getDatosMensajes()) {
             JPanel burbuja = new JPanel();
             burbuja.setLayout(new BoxLayout(burbuja, BoxLayout.Y_AXIS));
@@ -484,7 +499,6 @@ public class GUI extends JFrame {
                 JOptionPane.showMessageDialog(this, "Selecciona usuarios");
                 return;
             }
-
 
             RequestNuevoGrupo(nombreGrupo, usuarios);
             grupo.dispose();
