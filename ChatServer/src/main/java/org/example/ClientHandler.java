@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 
+import static org.example.ChatServer.traductorJson;
 import static org.example.ChatServer.writers;
 
 // Clase que maneja cada conexion de cliente en un hilo separado
@@ -30,9 +31,6 @@ public class ClientHandler extends Thread {
     private poolConexiones poolConexiones;
     // ID del usuario autenticado, null si no esta autenticado
     private Integer usuarioActualID = null;
-
-    // Es la clase principa de JSon que transforma objetos de java en JSON y viceversa
-    private final ObjectMapper traductorJson = new ObjectMapper();
 
     // Constructor que recibe el socket del cliente
     public ClientHandler(Socket socket, poolConexiones poolConexiones) {
@@ -97,6 +95,8 @@ public class ClientHandler extends Thread {
                         case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
 
                         case Close closeConn -> closeConn(closeConn);
+
+                        case Reconnect reconnectRequest -> reconnect(reconnectRequest);
 
                         case GetUsusEnLinea _ -> usuariosEnLinea();
 
@@ -778,4 +778,30 @@ public class ClientHandler extends Thread {
         }
     }
     
+private void reconnect(Reconnect request) throws JsonProcessingException {
+    try {
+        // Validar que el usuario exista
+        if (!existeTelefono(request.getTelefono())) {
+            enviarRespuesta(new Aviso("error", "Usuario no encontrado"));
+            return;
+        }
+
+        // Remover conexión anterior si existe
+        writers.remove(request.getTelefono());
+
+        // Reinicializar la conexión
+        try {
+            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            salida = new PrintWriter(socket.getOutputStream(), true);
+        } catch (IOException e) {
+            throw new IOException("Error al reiniciar streams de datos: " + e.getMessage());
+        }
+        enviarRespuesta(new Aviso("exito", "Necesitas Reinciar sesion"));
+        // Usuario actual se hace null de modo que no se puede acceder a ninguna funcion hasta volver a logearse.
+        usuarioActualID=null;
+
+    } catch (Exception e) {
+        enviarRespuesta(new Aviso("error", "Error en la reconexión: " + e.getMessage()));
+    }
+}
 }
