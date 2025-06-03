@@ -8,6 +8,9 @@ import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -24,6 +27,7 @@ public class GUI extends JFrame {
     private static JScrollPane scrollMensajes;
     private static JPanel panelMensaje;
     //Modelo para mostrar los usuarios conectados
+    private static JList<String> listaUsuarios;
     private static DefaultListModel<String> modeloUsuariosConectados;
 
     //Mensaje
@@ -55,6 +59,7 @@ public class GUI extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(800, heightOfFrame);
         setTitle("Conversaciones de " + loginInfo.getNombre());
+        setResizable(false);
 
 // === PANEL PRINCIPAL ===
         JPanel panelPrincipal = new JPanel();
@@ -127,33 +132,39 @@ public class GUI extends JFrame {
 
 
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
-        int localwidth = 150;
+        int localwidth = 200;
         JPanel panelDerecho = new JPanel();
         panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
         panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
+        JPanel panelBotones = new JPanel();
+        panelBotones.setLayout(new GridLayout(2,1,0,10));
+        panelBotones.setPreferredSize(new Dimension(localwidth, 0));
         JButton btnNuevoChat = new JButton("Nuevo Chat ");
         btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
-        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
         btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
+        panelBotones.add(btnNuevoChat);
+        panelBotones.add(btnNuevoGrupo);
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
-        JList<String> listaUsuarios = new JList<>();
+        listaUsuarios = new JList<>();
         modeloUsuariosConectados= new DefaultListModel<>();
         listaUsuarios.setModel(modeloUsuariosConectados);
         listaUsuarios.setFixedCellWidth(localwidth);
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
+        listaUsuarios.addListSelectionListener(_ -> {copiarTexto();});
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
+        scrollUsuarios.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollUsuarios.setBorder(BorderFactory.createTitledBorder("Usuarios conectados"));
 
-        panelDerecho.add(btnNuevoChat);
-        panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
-        panelDerecho.add(btnNuevoGrupo);
+        panelDerecho.add(panelBotones);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
         panelDerecho.add(scrollUsuarios);
 
@@ -173,6 +184,17 @@ public class GUI extends JFrame {
             }
         });
 
+    }
+
+    private static void copiarTexto() {
+        String selectedValue = listaUsuarios.getSelectedValue(); // Obtener el valor seleccionado
+
+        if (selectedValue != null) {
+            StringSelection stringSelection = new StringSelection(selectedValue);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            System.out.println("Copiado: " + selectedValue);
+        }
     }
 
     //Funcion de actualizacion de los usuarios
