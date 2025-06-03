@@ -113,7 +113,7 @@ public class PruebaCliente {
             System.out.println("Error al crear chat: " + e.getMessage());
         }
     }
-
+/*
     private void crearGrupo(){
         try{
             String jsonRequest = objectMapper.writeValueAsString(new CrearGrupo("Hola6","1234567890, 567"));
@@ -127,7 +127,7 @@ public class PruebaCliente {
             System.out.println("Error al crear grupo: " + e.getMessage());
         }
     }
-
+*/
     private void marcarLeido(){
         try{
             String jsonRequest = objectMapper.writeValueAsString(new MarcarLeido(1));

@@ -6,7 +6,9 @@ import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,7 +42,6 @@ public class GUI extends JFrame {
         //evento para cargar conversaciones
         RequestConversaciones();
     }
-
 
     //GUI
     private void initComponents() {
@@ -113,6 +114,7 @@ public class GUI extends JFrame {
         btnNuevoChat.setPreferredSize(new Dimension(150, 0));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
 
 
         panelDerecho.add(btnNuevoChat);
@@ -216,8 +218,76 @@ public class GUI extends JFrame {
         cargarMensajes();
     }
 
+    private void crearGrupo() {
+        ArrayList<String> usuarios = new ArrayList<>();
+        usuarios.add(loginInfo.getNombre());
+
+        JFrame grupo = new JFrame();
+        grupo.setTitle("Crear Grupo");
+        grupo.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        grupo.setSize(400, 300);
+        grupo.setLocationRelativeTo(null); // Centra la ventana
+
+        grupo.setLayout(new BorderLayout(10, 10));
+
+        // Parte superior: nombre del grupo
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(new JLabel("Nombre del grupo:"), BorderLayout.WEST);
+        JTextField nombreGrupoField = new JTextField();
+        topPanel.add(nombreGrupoField, BorderLayout.CENTER);
+        grupo.add(topPanel, BorderLayout.NORTH);
+
+
+        JTable nombresTable = new JTable(modeloConversaciones);
+        nombresTable.setRowSelectionAllowed(true);
+        nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+
+        JScrollPane scrollPane = new JScrollPane(nombresTable);
+        grupo.add(scrollPane, BorderLayout.CENTER);
+
+        // Parte inferior: botones
+        JPanel bottomPanel = new JPanel();
+        JButton confirmarButton = new JButton("Confirmar");
+        JButton cancelarButton = new JButton("Cancelar");
+        bottomPanel.add(confirmarButton);
+        bottomPanel.add(cancelarButton);
+        grupo.add(bottomPanel, BorderLayout.SOUTH);
+
+        grupo.setVisible(true);
+
+        confirmarButton.addActionListener((ActionEvent _) -> {
+            int[] filasSeleccionadas = nombresTable.getSelectedRows();
+            String nombreGrupo = nombreGrupoField.getText();
+
+            for (int fila : filasSeleccionadas) {
+                String nombre = nombresTable.getValueAt(fila, 0).toString();
+                usuarios.add(nombre);
+            }
+
+            if (nombreGrupo.isBlank()) {
+                JOptionPane.showMessageDialog(this, "Ingresa un nombre");
+                return;
+            }
+
+            if (usuarios.size() < 2) {
+                JOptionPane.showMessageDialog(this, "Selecciona usuarios");
+                return;
+            }
+
+            RequestNuevoGrupo(nombreGrupo, usuarios);
+            grupo.dispose();
+        });
+
+        cancelarButton.addActionListener((ActionEvent _) -> {
+           grupo.dispose();
+        });
+
+    }
+
 
     //clase dedicada para la creacion de chats 1v1
+
+
     private void crearDM() {
         String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
 

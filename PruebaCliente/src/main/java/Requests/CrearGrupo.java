@@ -6,20 +6,20 @@ import java.util.ArrayList;
 
 public class CrearGrupo extends Request{
     private String nombreGrupo;
-    private ArrayList<String> numsTelefono;
+    private ArrayList<String> usuarios;
 
     public CrearGrupo(@JsonProperty("nombreGrupo") String nombreGrupo,
-                      @JsonProperty("numsTelefono") ArrayList<String>  numsTelefono) {
+                      @JsonProperty("usuarios") ArrayList<String>  usuarios) {
         super("CREAR_GRUPO");
         this.nombreGrupo = nombreGrupo;
-        this.numsTelefono = numsTelefono;
+        this.usuarios = usuarios;
     }
 
     public String getNombreGrupo() {
         return nombreGrupo;
     }
 
-    public ArrayList<String> getNumsTelefono() {
-        return numsTelefono;
+    public ArrayList<String> getUsuarios() {
+        return usuarios;
     }
 }
