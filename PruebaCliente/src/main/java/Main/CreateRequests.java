@@ -1,6 +1,9 @@
 package Main;
 
 import Requests.*;
+
+import java.util.ArrayList;
+
 import static Main.Conexion.*;
 
 public class CreateRequests {
@@ -41,7 +44,15 @@ public class CreateRequests {
         CallRequest(new CrearConversacionIndividual("DM", telefonoDestino, Remitente));
     }
 
+    public static void RequestNuevoGrupo(String nombre, ArrayList<String> telefonos){
+        CallRequest(new CrearGrupo(nombre, telefonos));
+    }
+
     public static void RequestClose(String telefono){
         CallRequest(new Close(telefono));
+    }
+
+    public static void RequestGetUsusEnLinea(){
+        CallRequest(new GetUsusEnLinea());
     }
 }

@@ -114,7 +114,7 @@ public class PruebaCliente {
             System.out.println("Error al crear chat: " + e.getMessage());
         }
     }
-
+/*
     private void crearGrupo(){
         try{
             ArrayList<String> telefonos = new ArrayList<>();
@@ -131,7 +131,7 @@ public class PruebaCliente {
             System.out.println("Error al crear grupo: " + e.getMessage());
         }
     }
-
+*/
     private void marcarLeido(){
         try{
             String jsonRequest = objectMapper.writeValueAsString(new MarcarLeido(1));
@@ -162,15 +162,13 @@ public class PruebaCliente {
 
     public static void main(String[] args) {
         PruebaCliente app = new PruebaCliente();
-        app.conectarAServidor();
-        app.login();
-        app.getConversaciones();
-        app.getMensajes();
-        app.enviarMensaje();
-        app.crearConvPriv();
-        //app.crearGrupo();
-        app.marcarLeido();
-        app.getEstadoMensaje();
+        try {
+            Conexion.connect("127.0.0.1",1234);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        CreateRequests.RequestLogin("1234567891","julieta123");
+        CreateRequests.RequestGetUsusEnLinea();
     }
 }
 

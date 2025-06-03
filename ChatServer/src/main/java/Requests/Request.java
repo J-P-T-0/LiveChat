@@ -23,7 +23,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = GetEstadoMensaje.class, name = "GET_ESTADO_MENSAJE"),
         @JsonSubTypes.Type(value = MarcarLeido.class, name = "MARCAR_LEIDO"),
         @JsonSubTypes.Type(value = Close.class, name = "CLOSE_CONNECTION"),
-        @JsonSubTypes.Type(value = Reconnect.class, name = "RECONECTAR")
+        @JsonSubTypes.Type(value = Reconnect.class, name = "RECONECTAR"),
+        @JsonSubTypes.Type(value = GetUsusEnLinea.class, name = "GET_USUS_EN_LINEA"),
 })
 
 public abstract class Request {
