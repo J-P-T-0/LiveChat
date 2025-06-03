@@ -114,7 +114,7 @@ public class GUI extends JFrame {
         btnEnviar.addActionListener(_ -> enviarMensaje());
 
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
-        int localwidth = 150;
+        int localwidth = 200;
         JPanel panelDerecho = new JPanel();
         panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
         panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -137,6 +137,8 @@ public class GUI extends JFrame {
 
         JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
         scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
+        scrollUsuarios.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollUsuarios.setBorder(BorderFactory.createTitledBorder("Usuarios conectados"));
 
         panelDerecho.add(btnNuevoChat);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
