@@ -139,16 +139,24 @@ public class GUI extends JFrame {
         panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
         JPanel panelBotones = new JPanel();
-        panelBotones.setLayout(new GridLayout(2,1,0,10));
+        panelBotones.setLayout(new BoxLayout(panelBotones, BoxLayout.Y_AXIS));
         panelBotones.setPreferredSize(new Dimension(localwidth, 0));
-        JButton btnNuevoChat = new JButton("Nuevo Chat ");
-        btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
-        btnNuevoChat.addActionListener(_ -> crearDM());
+
+        JButton btnNuevoChat = new JButton("Nuevo Chat");
+        btnNuevoChat.setMaximumSize(new Dimension(localwidth, 40)); // Alto deseado
+        btnNuevoChat.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
-        btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
-        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
+        btnNuevoGrupo.setMaximumSize(new Dimension(localwidth, 40));
+        btnNuevoGrupo.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         panelBotones.add(btnNuevoChat);
+        panelBotones.add(Box.createVerticalStrut(10)); // Espacio entre botones
         panelBotones.add(btnNuevoGrupo);
+
+        btnNuevoChat.addActionListener(_ -> crearDM());
+        btnNuevoGrupo.addActionListener(_ -> crearGrupo());
+
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
         listaUsuarios = new JList<>();
