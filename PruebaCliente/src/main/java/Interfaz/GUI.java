@@ -288,14 +288,16 @@ public class GUI extends JFrame {
         mensajesPanel.setBorder(BorderFactory.createTitledBorder("")); // Título vacío por defecto
 
         if(respuesta.getConvID() == conversationId) {
+            mensajesPanel.removeAll();
+            // Buscar la conversación actual
             for (DatosConversacion conv : conversacionesUsuario) {
                 if (conv.getId() == conversationId) {
                     boolean esGrupo = conv.isEsGrupo();
                     if (esGrupo) mensajesPanel.setBorder(BorderFactory.createTitledBorder(
-                        "Grupo " + conv.getNombre() + " : " + conv.getParticipantes()
+                            "Grupo " + conv.getNombre() + " : " + conv.getParticipantes()
                     ));
                     else mensajesPanel.setBorder(BorderFactory.createTitledBorder(
-                        "Chat con: " + conv.getParticipantes()
+                            "Chat con: " + conv.getParticipantes()
                     ));
                     break;
                 }
