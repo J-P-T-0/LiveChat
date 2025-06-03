@@ -151,6 +151,7 @@ public class ClientHandler extends Thread {
     private void registrar(Registrarse request) throws SQLException, JsonProcessingException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
+            conn.setAutoCommit(false);
             if(existeTelefono(request.getTelefono(), conn)){
                 throw new Exception("El número ya está registrado, pedir número nuevamente.");
             }
@@ -159,7 +160,6 @@ public class ClientHandler extends Thread {
         } catch (Exception e) {
             enviarRespuesta(new Aviso("error", "Error al registrar usuario: " + e.getMessage()));
         } finally {
-            conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
             }
@@ -290,7 +290,6 @@ public class ClientHandler extends Thread {
 
             ArrayList<String> telefonos = getTelParticipantes(request.getConversacionID(), conn);
 
-            conn.setAutoCommit(true);
             if (conn != null){
                 poolConexiones.liberarConexion(conn);
             }
