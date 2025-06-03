@@ -1,14 +1,23 @@
 package org.example;
 
+//Importar los requests
+import Requests.*;
+import Respuestas.*;
 
 import java.io.*;
 import java.net.Socket;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 //importar librerias para JSON
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+
+
+import static org.example.ChatServer.traductorJson;
+import static org.example.ChatServer.writers;
 
 // Clase que maneja cada conexion de cliente en un hilo separado
 public class ClientHandler extends Thread {
@@ -19,7 +28,7 @@ public class ClientHandler extends Thread {
     // Writer para enviar mensajes al cliente
     private PrintWriter salida;
     // Conexion a la base de datos
-    private Connection conn;
+    private poolConexiones poolConexiones;
     // ID del usuario autenticado, null si no esta autenticado
     private Integer usuarioActualID = null;
 
@@ -27,243 +36,608 @@ public class ClientHandler extends Thread {
     private final ObjectMapper traductorJson = new ObjectMapper();
 
     // Constructor que recibe el socket del cliente
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, poolConexiones poolConexiones) {
         this.socket = socket;
+        this.poolConexiones = poolConexiones;
     }
 
 
     // Metodo principal que se ejecuta en el hilo
     public void run() {
         try {
-            // Streams de entrada/salida
-            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            salida = new PrintWriter(socket.getOutputStream(), true);
+            //System.out.println("Local: has entrado a la validación");
+            // Inicializa los streams de entrada/salida
+            try {
+                entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                salida = new PrintWriter(socket.getOutputStream(), true);
+
+            } catch (IOException e) {
+                System.out.println("Entrada/salida no disponible: " + e.getMessage());
+                return;
+            }
+
             // Confirmar conexion
-            ObjectNode datos = traductorJson.createObjectNode();// Crea un objeto de tipo java y se usa el traductorJson para poder editar Json con Java
-            datos.put("comandos", "REGISTRARSE, LOGIN, GET_CONVERSACIONES, GET_MENSAJES, ENVIAR_MENSAJE, CREAR_CONVERSACION, CREAR_GRUPO, MENSAJE_PRIVADO");
-            enviarRespuesta("exito", "Conexion al servidor establecida", datos);
-
-            // Configura propiedades SSL en el servidor para mysql (contenedor con la base de datos)
-            System.setProperty("javax.net.ssl.trustStore", "/app/truststore/truststore.jks");
-            System.setProperty("javax.net.ssl.trustStorePassword", System.getenv("TRUSTSTORE_PASS"));
-            // Obtiene credenciales de base de datos de variables de entorno dentro del contenedor
-            String url = System.getenv("DB_URL");
-            String user = System.getenv("DB_USER");
-            String password = System.getenv("DB_PASS");
-
-            // Establece conexión con la base de datos
-            conn = DriverManager.getConnection(url, user, password);
-            // Ciclo principal de lectura de comandos
+            //enviarRespuesta(new Aviso("éxito","conexión establecida con el servidor"));
+            
             String linea;
             while ((linea = entrada.readLine()) != null) {
                 try {
+                    // migrar_Todo a JSON :,,,D
                     //Convierte el string que recibe los mensajes de clientes y los convierte al formato Json (un arbol de objetos)
-                    ObjectNode comando = (ObjectNode) traductorJson.readTree(linea);
-                    //ReadTree es un metod de traductorJson que permite convertir un Json en un objeto de java
-                    // Verificamos el tipo de comando
-                    String tipoComando = comando.get("comando").asText().toUpperCase();
+                    System.out.println(linea);
 
-                    // Verificación de autenticación
-                    if (!tipoComando.equals("LOGIN") && !tipoComando.equals("REGISTRARSE")
-                            && usuarioActualID == null) {
-                        enviarRespuesta("error", "No puedes acceder al servidor sin estar autenticado");
-                        continue;
+                    if(linea.trim().startsWith("{")){
+
+                        //Almacena el request pedido de lado de cliente
+                        Request newRequest = traductorJson.readValue(linea, Request.class);
+
+                        System.out.println("traductor funciona");
+
+                        // Verificación de autenticación
+                        if (!(newRequest instanceof Close) && !(newRequest instanceof Login) && !(newRequest instanceof Registrarse)
+                                && usuarioActualID == null) {
+                            enviarRespuesta(new Aviso("error", "Debes autenticarte primero"));
+                            continue;
+                        }
+
+                        switch (newRequest) {
+                            case Login loginRequest->login(loginRequest);
+
+                            case Registrarse registroRequest ->registrar(registroRequest);
+
+                            case GetConversaciones _ -> cargarConversaciones();
+
+                            case GetMensajes mensajesRequest -> getMensajes(mensajesRequest);
+
+                            case EnviarMensaje enviarMensajeRequest ->enviarMensaje(enviarMensajeRequest);
+
+                            case CrearConversacionIndividual crearConvPrivRequest -> crearConversacionIndividual(crearConvPrivRequest);
+
+                            case CrearGrupo crearGrupoRequest -> crearGrupo(crearGrupoRequest);
+
+                            case GetEstadoMensaje getEstadoMensajeRequest -> obtenerEstadoMensaje(getEstadoMensajeRequest);
+
+                            case MarcarLeido marcarLeidoRequest -> marcarMensajeComoLeido(marcarLeidoRequest);
+
+                            case Close closeConn -> closeConn(closeConn);
+
+                            case GetUsusEnLinea _ -> usuariosEnLinea();
+
+                            default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
+                        }
                     }
 
-                    switch (tipoComando) {
-                        case "LOGIN":
-                            login(comando.get("telefono").asText(), comando.get("password").asText());
-                            break;
-
-                        case "REGISTRARSE":
-                            //Al registrar usuario debe volver a mostrarse LOGIN para acceder
-                            registrar(comando.get("telefono").asText(), comando.get("nombre").asText(), comando.get("password").asText());
-                            break;
-
-                        case "GET_CONVERSACIONES":
-                            cargarConversaciones();
-                            break;
-
-                        case "GET_MENSAJES":
-                            getMensajes(comando.get("conversacionId").asInt());
-                            break;
-
-                        case "ENVIAR_MENSAJE":
-                            enviarMensaje(
-                                    comando.get("conversacionId").asInt(),
-                                    comando.get("mensaje").asText()
-                            );
-                            break;
-
-                        case "CREAR_CONVERSACION":
-                            break;
-                        case "CREAR_GRUPO":
-
-                            break;
-                        case "MENSAJE_PRIVADO":
-
-                            break;
-                        case "MARCAR_MENSAJE_COMO_LEIDO":
-                            marcarMensajeComoLeido(comando.get("mensajeId").asInt());
-                            break;
-                        case "OBTENER_ESTADO_MENSAJE":
-                            obtenerEstadoMensaje(comando.get("mensajeId").asInt());
-                            break;
-                        default:
-                            enviarRespuesta("error", "comando invalido");
-                    }
                 } catch (Exception e) {
-                    enviarRespuesta("error", "Error al procesar comando: " + e.getMessage());
+                    System.err.println(e.getMessage());
+                    enviarRespuesta(new Aviso("error", "Error al procesar comando: " + e.getMessage()));
                 }
             }
-
-            // Cierra conexiones al terminar
-            conn.close();
-            socket.close();
         } catch (Exception e) {
-            //Se guarda en los logs del server
             System.err.println("Error con cliente: " + e.getMessage());
+        } finally {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                System.err.println("Error al cerrar el socket: " + e.getMessage());
+            }
+            System.out.println("Cliente finalizado");
         }
     }
+
+    /*METODOS PRINCIPALES - REQUIEREN POLL DE CONEXIONES*/
 
     // metoodo login con json
-    private void login(String telefono, String password) {
+    private void login(Login request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
         try {
-            if (autenticarUsuario(telefono, password)) {
-                enviarRespuesta("exito", "login realizado correctamente");
+            if (autenticarUsuario(request.getTelefono(), request.getPassword(), conn)) {
+                String nombre = getUsuFromTel(request.getTelefono(), conn);
+                enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
+                writers.put(request.getTelefono(), salida);
+                usuariosEnLinea();
             } else {
-                enviarRespuesta("error", "nombre o contrasenia incorrectos");
+                enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
         } catch (Exception e) {
-            enviarRespuesta("error", "Error en login: " + e.getMessage());
+            enviarRespuesta(new Aviso("error", "Error en login: " + e.getMessage()));
+        } finally {
+            conn.setAutoCommit(true);
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
         }
     }
 
-    // metodo que carga las conversaciones del usuario
-    private void cargarConversaciones() throws SQLException {
+    // metodo para registrar un nuevo usuario con JSON
+    private void registrar(Registrarse request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            conn.setAutoCommit(false);
+            if(existeTelefono(request.getTelefono(), conn)){
+                throw new Exception("El número ya está registrado, pedir número nuevamente.");
+            }
+            usuarioRegistrado(request.getNombre(), request.getTelefono(), request.getContrasena(), conn);
+            enviarRespuesta(new Aviso("éxito","Se registró el usuario"));
+        } catch (Exception e) {
+            enviarRespuesta(new Aviso("error", "Error al registrar usuario: " + e.getMessage()));
+        } finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    private void cargarConversaciones() throws SQLException, JsonProcessingException {
+    Connection conn = poolConexiones.obtenerConexion();
+    try {
         String sql = """
-                SELECT c.id, c.nombre, c.isGrupo FROM conversaciones c
+                SELECT c.id, c.nombre, c.isGrupo
+                FROM conversaciones c
                 INNER JOIN conversacion_usuario p ON c.id = p.conversacion_id
                 WHERE p.usuario_id = ?
+                LIMIT 0,50
                 """;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {//Try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
+        try{
+            //Ejecutar la query
+            PreparedStatement stmt = conn.prepareStatement(sql);
             stmt.setInt(1, usuarioActualID);
             ResultSet rs = stmt.executeQuery();
 
-            ArrayNode conversaciones = traductorJson.createArrayNode();//array que contiene multiples objetos en este caso conversaciones
-            while (rs.next()) {
-                //conv es como crear un objeto de tipo conversacion
-                ObjectNode conv = traductorJson.createObjectNode();
-                conv.put("id", rs.getInt("id"));
-                conv.put("nombre", rs.getString("nombre"));
-                conv.put("tipo", rs.getBoolean("isGrupo") ? "Grupo" : "Individual");
-                conversaciones.add(conv);
-            }
+            ArrayList<DatosConversacion> datosConv = new ArrayList<>();
 
-            ObjectNode datos = traductorJson.createObjectNode();//Se vuelve a envolver en un objeto de tipo object node para enviarlo
-            //se accede de manera similar a un arraylist  rootNode.get("conversaciones").get(indice);
-            datos.set("conversaciones", conversaciones);
-            enviarRespuesta("exito", "Conversaciones recuperadas con éxito", datos);
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                ArrayList<String> participantes = getParticipantes(id,conn);
+                ArrayList<String> telefonos = getTelParticipantes(id,conn);
+                //conv es como crear un objeto de tipo conversacion
+                datosConv.add(new DatosConversacion(rs.getInt("id"), rs.getString("nombre"), rs.getBoolean("isGrupo"), participantes, telefonos));
+            }
+            enviarRespuesta(new ReturnConversaciones(datosConv));
+        }catch (SQLException e) {
+            enviarRespuesta(new Aviso("error", "Error al recuperar conversaciones: " + e.getMessage()));
+        }
+    } finally {
+        conn.setAutoCommit(true);
+        if (conn != null){
+            poolConexiones.liberarConexion(conn);
         }
     }
+}
 
-    private void getMensajes(int conversacionId) throws SQLException {
+    private void getMensajes(GetMensajes request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
         String sql = """
-                SELECT u.nombre, m.mensaje, m.fecha_envio 
+                SELECT u.nombre, m.mensaje, m.fecha_envio
                 FROM mensajes m
                 JOIN usuarios u ON m.remitente_id = u.id
-                WHERE m.conversacion_id = ? 
+                WHERE m.conversacion_id = ?
                 ORDER BY m.fecha_envio
+                LIMIT 0,50
                 """;
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, conversacionId);
+        try{
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, request.getConversacionId());
             ResultSet rs = stmt.executeQuery();
 
-            ArrayNode mensajesArray = traductorJson.createArrayNode();
+            ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
             while (rs.next()) {
-                ObjectNode mensaje = traductorJson.createObjectNode();
-                mensaje.put("nombre", rs.getString("nombre"));
-                mensaje.put("mensaje", rs.getString("mensaje"));
-                mensaje.put("fecha_envio", rs.getTimestamp("fecha_envio").toString());
-                mensajesArray.add(mensaje);
+                datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
+            }
+            enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()));
+        }catch(Exception e){
+            enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()));
+        }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+
+    }
+
+    private void getMensajes(GetMensajes request, String telDestinatario) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = """
+                SELECT u.nombre, m.mensaje, m.fecha_envio
+                FROM mensajes m
+                JOIN usuarios u ON m.remitente_id = u.id
+                WHERE m.conversacion_id = ?
+                ORDER BY m.fecha_envio
+                LIMIT 0,50
+                """;
+            try{
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, request.getConversacionId());
+                ResultSet rs = stmt.executeQuery();
+
+                ArrayList<DatosMensajes> datosMensajes = new ArrayList<>();
+                while (rs.next()) {
+                    datosMensajes.add(new DatosMensajes(rs.getString("nombre"),rs.getString("mensaje"),rs.getTimestamp("fecha_envio").toString()));
+                }
+                enviarRespuesta(new ReturnMensajes(datosMensajes, request.getConversacionId()), writers.get(telDestinatario));
+            }catch(Exception e){
+                enviarRespuesta(new Aviso("error", "Error al recuperar mensajes: " + e.getMessage()), writers.get(telDestinatario));
+            }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+
+    }
+
+    private void enviarMensaje(EnviarMensaje request) throws JsonProcessingException, SQLException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            conn.setAutoCommit(false);
+            String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
+            try {
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                stmt.setInt(1, request.getConversacionID());
+                stmt.setInt(2, usuarioActualID);
+                stmt.setString(3, request.getMensaje());
+                stmt.executeUpdate();
+
+
+
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                enviarRespuesta(new Aviso("error", "Error al enviar mensajes: " + e.getMessage()));
+            }
+        } finally {
+
+            ArrayList<String> telefonos = getTelParticipantes(request.getConversacionID(), conn);
+
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
             }
 
-            ObjectNode datos = traductorJson.createObjectNode();
-            datos.set("mensajes", mensajesArray);
-            enviarRespuesta("exito", "Mensajes recuperados con éxito", datos);
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+
+            for(String t : telefonos){
+                System.out.println(t);
+                //Se asegura de que el destinatario esté en linea para evitar errores
+                if(writers.containsKey(t)) {
+                    getMensajes(new GetMensajes(request.getConversacionID()), t);
+                }
+            }
+
+
         }
     }
 
-    private void enviarMensaje(int conversacionId, String mensaje) throws SQLException {
-        String sql = "INSERT INTO mensajes (conversacion_id, remitente_id, mensaje, fecha_envio) VALUES (?, ?, ?, NOW())";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, conversacionId);
-            stmt.setInt(2, usuarioActualID);
-            stmt.setString(3, mensaje);
-            int filas = stmt.executeUpdate();
+    private void crearConversacionIndividual(CrearConversacionIndividual request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            conn.setAutoCommit(false); // Se inicia la transacción manualmente
 
-            if (filas > 0) {
-                enviarRespuesta("exito", "Mensaje enviado exitosamente");
-            } else {
-                enviarRespuesta("error", "Error al enviar mensaje");
+            try {
+                // Validar si el número destino existe
+                Integer idDestino = validarTelefono(request.getTelefonoDestino(), conn);
+                if (idDestino == null) {
+                    enviarRespuesta(new Aviso("error", "No existe usuario con el número: " + request.getTelefonoDestino()));
+                    return;
+                }
+
+                // Verificar si ya existe una conversación individual entre ambos
+                String checkSql = """
+                SELECT c.id FROM conversaciones c
+                JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+                JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+                WHERE cu1.usuario_id = ? AND cu2.usuario_id = ?
+                AND (SELECT COUNT(*) FROM conversacion_usuario cu3 WHERE cu3.conversacion_id = c.id) = 2
+            """;
+
+                try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                    checkStmt.setInt(1, usuarioActualID);
+                    checkStmt.setInt(2, idDestino);
+                    ResultSet rs = checkStmt.executeQuery();
+                    if (rs.next()) {
+                        enviarRespuesta(new Aviso("error", "Este teléfono ya fue añadido a tus conversaciones"));
+                        return;
+                    }
+                }
+
+                // Si no existe, crear conversación
+                String sql = "INSERT INTO conversaciones (nombre, isGrupo) VALUES (?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                    stmt.setString(1, request.getNombreConv());
+                    stmt.setBoolean(2, false); // conversación individual
+                    stmt.executeUpdate();
+
+                    ResultSet claves = stmt.getGeneratedKeys(); // Obtener el id de la inserción que se acaba de realizar
+                    if (claves.next()) {
+                        int nuevoIdConversacion = claves.getInt(1);
+
+                        String remitente = request.getRemitente();
+                        String destinatario = getUsuFromTel(request.getTelefonoDestino(), conn);
+
+                        // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
+                        String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
+                        try (PreparedStatement insertStmt = conn.prepareStatement(insertUsuarios)) {
+                            insertStmt.setInt(1, nuevoIdConversacion);
+                            insertStmt.setInt(2, usuarioActualID);
+                            insertStmt.setInt(3, nuevoIdConversacion);
+                            insertStmt.setInt(4, idDestino);
+                            insertStmt.executeUpdate();
+
+                            enviarRespuesta(new ReturnConvID(nuevoIdConversacion, destinatario, request.getTelefonoDestino()));
+
+                            //Se asegura de que el destinatario esté en linea para evitar errores
+                            if(writers.containsKey(request.getTelefonoDestino())) {
+                                enviarRespuesta(new ReturnConvID(nuevoIdConversacion, remitente, getTelFromID(usuarioActualID, conn)), writers.get(request.getTelefonoDestino()));
+                            }
+
+                        }
+                        usuariosEnLinea();
+                    }
+                }
+
+                conn.commit(); // Finaliza la transacción exitosamente
+
+            } catch (SQLException e) {
+                System.out.println("Error al crear conversacion individual: " + e.getMessage());
+                conn.rollback(); // Revierte todos los cambios si hubo error
+                throw e;
+            }
+        }finally {
+
+            conn.setAutoCommit(true);
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
             }
         }
     }
 
-    private void registrarUsuario(String telefono, String nombre, String password) throws SQLException {
-        String telefonoExiste = "SELECT id FROM usuarios WHERE telefono = ?";
-        try (PreparedStatement checkStmt = conn.prepareStatement(telefonoExiste)) {//Try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
-            checkStmt.setString(1, telefono);
-            ResultSet rs = checkStmt.executeQuery();// para SELECT
-            if (rs.next()) {//Si hay resultados, el telefono ya existe, lista enlazada
-                enviarRespuesta("error", "El número de teléfono ya está registrado");
-                return;
+    private void crearGrupo(CrearGrupo request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            conn.setAutoCommit(false); // Inicia transacción para el grupo
+
+            try {
+                // Crea conversación tipo grupo
+                String crearGrupo = "INSERT INTO conversaciones (nombre, isGrupo) VALUES (?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(crearGrupo, Statement.RETURN_GENERATED_KEYS)) {
+                    stmt.setString(1, request.getNombreGrupo());
+                    stmt.setBoolean(2, true);
+                    stmt.executeUpdate();
+
+                    ResultSet Clave = stmt.getGeneratedKeys();
+                    if (Clave.next()) {
+                        int idConversacion = Clave.getInt(1);
+                        ArrayList<Integer> IDs = new ArrayList<>();
+
+                        for(String tel : request.getTelefonos()){
+                            IDs.add(getIDFromTel(tel, conn));
+                        }
+
+                        // Inserta todos los participantes válidos
+                        StringBuilder sb = new StringBuilder("INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES ");
+                        for (int i = 0; i < request.getTelefonos().size(); i++) {
+                            sb.append("(?, ?)");
+                            if (i < request.getTelefonos().size() - 1) sb.append(", ");
+                        }
+
+                        try (PreparedStatement insertar = conn.prepareStatement(sb.toString())) {
+                            int idx = 1;
+                            for (Integer idUsuario : IDs) {
+                                insertar.setInt(idx++, idConversacion);
+                                insertar.setInt(idx++, idUsuario);
+                            }
+                            insertar.executeUpdate();
+
+                            enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion, conn), request.getNombreGrupo()));
+                        }
+                    }
+                }
+
+                conn.commit(); // Finaliza transacción
+
+            } catch (SQLException e) {
+                conn.rollback();
+                enviarRespuesta(new Aviso("error", "Error al crear grupo: " + e.getMessage()));
+                throw e;
             }
-        }
-        //Si no, el telefono se puede registrar
-        String sql = "INSERT INTO usuarios (telefono, nombre, password) VALUES (?, ?, ?)";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {//try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
-            stmt.setString(1, telefono);
-            stmt.setString(2, nombre);
-            stmt.setString(3, password);
-            int resultado = stmt.executeUpdate();// para: INSERT, UPDATE, DELETE
-            // resultado guarda el numero de filas afectadas con executeUpdate
-            if (resultado > 0) {
-                enviarRespuesta("exito", "Usuario registrado exitosamente");
-            } else {
-                enviarRespuesta("error", "Error al registrar usuario");
+        }finally {
+            conn.setAutoCommit(true);
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
             }
         }
     }
+
+    private void usuariosEnLinea () throws SQLException, JsonProcessingException{
+        Connection conn = poolConexiones.obtenerConexion();
+        try{
+            //<telefono, nombre>
+            Map<String, String> nombreDelTelefono= new HashMap<>();
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+                if(writers.get(s) != null) {
+                    nombreDelTelefono.put(s, getUsuFromTel(s, conn));
+                }
+            }
+            for(String s : nombreDelTelefono.keySet()){
+                enviarRespuesta(new ReturnUsusEnLinea(nombreDelTelefono),writers.get(s));
+            }
+        }finally {
+            conn.setAutoCommit(true);
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    // metodo para marcar mensaje como leído
+    private void marcarMensajeComoLeido(MarcarLeido request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            // verificar que el mensaje pertenezca a una conversación del usuario logeado
+            String checkSql = """
+            SELECT m.id
+            FROM mensajes m
+            JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
+            WHERE m.id = ? AND cu.usuario_id = ?
+            """;
+
+            try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setInt(1, request.getMensajeID());
+                checkStmt.setInt(2, usuarioActualID);
+
+                if (!checkStmt.executeQuery().next()) {
+                    enviarRespuesta(new Aviso("error", "mensaje no pertenece a ninguna de tus conversaciones"));
+                    return;
+                }
+
+                // Si pertenece a alguna conversacion del usuario
+                String updateSql = "UPDATE mensajes SET fecha_lectura = NOW() WHERE id = ?";
+                try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                    updateStmt.setInt(1, request.getMensajeID());
+                    int filasActualizadas = updateStmt.executeUpdate();
+
+                    if (filasActualizadas > 0) {
+                        enviarRespuesta(new Aviso("exito", "Mensaje marcado como leído"));
+                    } else {
+                        enviarRespuesta(new Aviso("error", "No se pudo marcar el mensaje como leído"));
+                    }
+                }
+            }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    // metodo para obtener el estado del mensaje
+    private void obtenerEstadoMensaje(GetEstadoMensaje request) throws SQLException, JsonProcessingException {
+        Connection conn = poolConexiones.obtenerConexion();
+        try {
+            String sql = """
+            SELECT m.id, m.isEntregado, m.fecha_lectura, m.fecha_envio
+            FROM mensajes m
+            JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
+            WHERE m.id = ? AND cu.usuario_id = ?
+            """;
+
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, request.getMensajeID());
+                stmt.setInt(2, usuarioActualID);
+                ResultSet rs = stmt.executeQuery();
+
+                if (rs.next()) {
+                    String estadoMensaje;
+                    String fechaLectura = "";
+
+                    // Evaluar el estado
+                    if (rs.getTimestamp("fecha_lectura") != null) {
+                        estadoMensaje = "leido";
+                        fechaLectura = rs.getTimestamp("fecha_lectura").toString();
+                    } else if (rs.getBoolean("isEntregado")) {
+                        estadoMensaje = "entregado";
+                    } else {
+                        estadoMensaje = "no entregado";
+                    }
+
+                    enviarRespuesta(new ReturnEstadoMensaje(estadoMensaje,fechaLectura,rs.getTimestamp("fecha_envio").toString() ));
+                } else {
+                    enviarRespuesta(new Aviso("error", "Este mensaje o no existe"));
+                }
+            }
+        }finally {
+            if (conn != null){
+                poolConexiones.liberarConexion(conn);
+            }
+        }
+    }
+
+    private void closeConn(Close closeConn) {
+        try {
+            enviarRespuesta(new CloseClient());
+            writers.remove(closeConn.getTelefono());
+            salida.close();
+            entrada.close();
+            socket.close();
+            usuariosEnLinea();
+        }catch (Exception e) {
+            System.err.println("Error al cerrar conexión: " + e.getMessage());
+        }finally {
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+            }
+        }
+    }
+
+    // metodo para enviar respuestas con campos personalizados como id_conversacion o fehca_envio con JSON
+    // métod0 fue modificado para que mande todos los tipos de mensajes
+    private void enviarRespuesta(Respuesta respuesta) throws JsonProcessingException {
+        String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
+        salida.println(jsonRespuesta);
+    }
+
+    //metodo para mandar respuesta a usuario especifico
+    private void enviarRespuesta(Respuesta respuesta, PrintWriter output) throws JsonProcessingException {
+        System.out.println("Respuesta a otro");
+        String jsonRespuesta = traductorJson.writeValueAsString(respuesta);
+        output.println(jsonRespuesta);
+    }
+
+    /*
+    *   SECCIÓN DE VALIDACIONES PARA LAS DEMÁS FUNCIONES
+    *   REUTILIZAR CONN
+    */
+    private String getUsuFromTel(String telefono, Connection conn) throws SQLException {
+        String sql = "SELECT nombre FROM usuarios WHERE telefono = ?";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setString(1, telefono);
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        return rs.getString("nombre");
+    }
+
+
+    //Valida si el usuario logró ser registrado o no
+    private void usuarioRegistrado(String nombre, String telefono, String contrasenia, Connection conn) throws SQLException {
+        String sql = "INSERT INTO usuarios (nombre, telefono, contrasenia) VALUES (?, ?, ?)";
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        stmt.setString(1, nombre);
+        stmt.setString(2, telefono);
+        stmt.setString(3, contrasenia);
+        stmt.executeUpdate();
+        conn.commit();
+    }
+
+    //Valida si ya existe algún usuario con el mismo teléfono
+    private boolean existeTelefono (String telefono, Connection conn) throws SQLException{
+        String checkTel = "SELECT id FROM usuarios WHERE telefono = ?";
+        PreparedStatement checkStmt = conn.prepareStatement(checkTel);
+        checkStmt.setString(1, telefono);
+        ResultSet rs = checkStmt.executeQuery();
+        return rs.next();
+    }
+
 
     // metodo para autenticar usuario retorna true si encuentra al usuario
-    private boolean autenticarUsuario(String telefono, String password) throws SQLException {
-        String sql = "SELECT id FROM usuarios WHERE telefono = ? AND password = ?";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {//Try-with-resources para cerrar automaticamente la conexion con la db despues de ejecutar el try, (PreparedStatement ya tiene implementada la interfaz AutoCloseable)
-            pstmt.setString(1, telefono);
-            pstmt.setString(2, password);
-            ResultSet rs = pstmt.executeQuery();
-            // Si se encuentra un usuario con esos parametros, retorna verdadero y actualiza el parametro usuarioActualID
-            if (rs.next()) {
-                usuarioActualID = rs.getInt("id");
-                return true;
-            }
+    private boolean autenticarUsuario(String telefono, String password, Connection conn) throws SQLException {
+        String sql = "SELECT id FROM usuarios WHERE telefono = ? AND contrasenia = ?";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setString(1, telefono);
+        pstmt.setString(2, password);
+        ResultSet rs = pstmt.executeQuery();
+        // Si se encuentra un usuario con esos parametros, retorna verdadero y actualiza el parametro usuarioActualID
+        if (rs.next()) {
+            usuarioActualID = rs.getInt("id");
+            return true;
         }
         return false;
     }
 
-    // metodo para registrar un nuevo usuario con JSON
-    private void registrar(String telefono, String nombre, String password) {
-        try {
-            registrarUsuario(telefono, nombre, password);
-            enviarRespuesta("exito", "Usuario registrado correctamente");
-        } catch (SQLException e) {
-            enviarRespuesta("error", "Error al registrar usuario: " + e.getMessage());
-        }
-    }
-
-    // metodo para validar número de teléfono
-    private Integer validarTelefono(String telefono) throws SQLException {
+    private Integer validarTelefono(String telefono, Connection conn) throws SQLException, JsonProcessingException {
         String sql = "SELECT id FROM usuarios WHERE telefono = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, telefono);
@@ -272,173 +646,97 @@ public class ClientHandler extends Thread {
                 return rs.getInt("id");
             }
         } catch (SQLException e) {
-            enviarRespuesta("error", "Error al validar teléfono: " + e.getMessage());
+            enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
             throw e;
         }
         return null;
     }
 
-    // metodo para enviar respuestas simples como error o exito con JSON
-    private void enviarRespuesta(String estado, String descripcion) {
-        ObjectNode respuesta = traductorJson.createObjectNode();//Se crea un Nodo de tipo Json vacio usando el traductorJson
-        //Cada comunicacion va a tener almenos 2 campos: estado y descripcion para la validacion de consultas del cliente
-        respuesta.put("estado", estado);
-        //put es un metodo de ObjectNode que permite agregar pares de clave-valor como en un hashmap
-        respuesta.put("descripcion", descripcion);
-        salida.println(respuesta);
-    }
-
-    // metodo para enviar respuestas con campos personalizados como id_conversacion o fehca_envio con JSON
-    private void enviarRespuesta(String estado, String descripcion, ObjectNode datosAdicionales) {
-        ObjectNode respuesta = traductorJson.createObjectNode();//Se crea un Nodo de tipo Json vacio usando el traductorJson
-        //Cada comunicacion va a tener almenos 2 campos: estado y descripcion para la validacion de consultas del cliente
-        respuesta.put("estado", estado);
-        //put es un metodo de ObjectNode que permite agregar pares de clave-valor como en un hashmap
-        respuesta.put("descripcion", descripcion);
-        respuesta.setAll(datosAdicionales); // Añade todos los datos adicionales
-        salida.println(respuesta);
-    }
-
-    // metodo para marcar mensaje como leído
-    private void marcarMensajeComoLeido(int mensajeId) throws SQLException {
-        // verificar que el mensaje pertenezca a una conversación del usuario logeado
-        String checkSql = """
-                SELECT m.id 
-                FROM mensajes m
-                JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
-                WHERE m.id = ? AND cu.usuario_id = ?
-                """;
-
-        try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-            checkStmt.setInt(1, mensajeId);
-            checkStmt.setInt(2, usuarioActualID);
-
-            if (!checkStmt.executeQuery().next()) {
-                enviarRespuesta("error", "mensaje no pertenece a ninguna de tus conversaciones");
-                return;
-            }
-
-            // Si pertenece a alguna conversacion del usuario
-            String updateSql = "UPDATE mensajes SET fecha_lectura = NOW() WHERE id = ?";
-            try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                updateStmt.setInt(1, mensajeId);
-                int filasActualizadas = updateStmt.executeUpdate();
-
-                if (filasActualizadas > 0) {
-                    enviarRespuesta("exito", "Mensaje marcado como leído");
-                } else {
-                    enviarRespuesta("error", "No se pudo marcar el mensaje como leído");
-                }
-            }
-        }
-    }
-
-    // metodo para obtener el estado del mensaje
-    private void obtenerEstadoMensaje(int mensajeId) throws SQLException {
-        String sql = """
-                SELECT m.id, m.fue_entregado, m.fecha_lectura, m.fecha_envio
-                FROM mensajes m
-                JOIN conversacion_usuario cu ON m.conversacion_id = cu.conversacion_id
-                WHERE m.id = ? AND cu.usuario_id = ?
-                """;
-
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, mensajeId);
-            stmt.setInt(2, usuarioActualID);
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                ObjectNode datos = traductorJson.createObjectNode();
-                String estadoMensaje;
-                String fechaLectura = "";
-
-                // Evaluar el estado
-                if (rs.getTimestamp("fecha_lectura") != null) {
-                    estadoMensaje = "leido";
-                    fechaLectura = rs.getTimestamp("fecha_lectura").toString();
-                } else if (rs.getBoolean("isEntregado")) {
-                    estadoMensaje = "entregado";
-                } else {
-                    estadoMensaje = "no entregado";
-                }
-
-                datos.put("estadoMensaje", estadoMensaje);
-                datos.put("fechaLectura", fechaLectura);
-                datos.put("fechaEnvio", rs.getTimestamp("fecha_envio").toString());
-
-                enviarRespuesta("exito", "Estado del mensaje recuperado", datos);
-            } else {
-                enviarRespuesta("error", "Este mensaje o no existe");
-            }
-        }
-    }
-    private void crearConversacionIndividual(String telefonoDestino) throws SQLException {
-        // Validar si el número destino existe
-        Integer idDestino = validarTelefono(telefonoDestino);
-        if (idDestino == null) {
-            enviarRespuesta("error", "No existe usuario con el número: " + telefonoDestino);
-            return;
-        }
-
-        // Verificar si ya existe una conversación individual entre ambos
-        String checkSql = """
-        SELECT c.id FROM conversaciones c
-        JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
-        JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
-        WHERE cu1.usuario_id = ? AND cu2.usuario_id = ?
-        AND (SELECT COUNT(*) FROM conversacion_usuario cu3 WHERE cu3.conversacion_id = c.id) = 2
-    """;
-
-        try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
-            checkStmt.setInt(1, usuarioActualID);
-            checkStmt.setInt(2, idDestino);
-            ResultSet rs = checkStmt.executeQuery();
-            if (rs.next()) {
-                ObjectNode datos = traductorJson.createObjectNode();
-                datos.put("idConversacion", rs.getInt("id"));
-                enviarRespuesta("success", "Ya existe una conversación con este usuario", datos);
-                return;
-            }
-        }
-
-        // Si no existe, crear conversación
-        String sql = "INSERT INTO conversaciones (nombre, isGrupo) VALUES (?, ?)";
-        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, "Chat privado");
-            stmt.setBoolean(2, false);//
-            stmt.executeUpdate();
-
-            ResultSet claves = stmt.getGeneratedKeys();//Obtener el id de la insercion que se acaba de realizar
-            if (claves.next()) {
-                int nuevoIdConversacion = claves.getInt(1);
-                //hace 2 insercion una para cada usuario en la tabla de union entre usuaro y conversacion
-                String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
-                try (PreparedStatement insertStmt = conn.prepareStatement(insertUsuarios)) {
-                    insertStmt.setInt(1, nuevoIdConversacion);
-                    insertStmt.setInt(2, usuarioActualID);
-                    insertStmt.setInt(3, nuevoIdConversacion);
-                    insertStmt.setInt(4, idDestino);
-                    insertStmt.executeUpdate();
-
-                    ObjectNode datos = traductorJson.createObjectNode();
-                    datos.put("idConversacion", nuevoIdConversacion);
-                    enviarRespuesta("success", "Conversación individual creada", datos);
-                }
-            }
-        }
-    }
-    private void crearConversacionPrivada(int remitenteId) throws SQLException {
+    private String getTelFromID(Integer id, Connection conn) throws SQLException, JsonProcessingException {
         String sql = "SELECT telefono FROM usuarios WHERE id = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, remitenteId);
+            stmt.setString(1, id.toString());
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                String telefonoRemitente = rs.getString("telefono");
-                crearConversacionIndividual(telefonoRemitente);
-            } else {
-                enviarRespuesta("error", "No se encontró al usuario con ID " + remitenteId);
+                return rs.getString("telefono");
             }
+        } catch (SQLException e) {
+            enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
+            throw e;
         }
+        return null;
     }
 
+    private Integer getIDFromTel(String tel, Connection conn) throws SQLException, JsonProcessingException {
+        String sql = "SELECT id FROM usuarios WHERE telefono = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, tel);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+        } catch (SQLException e) {
+            enviarRespuesta(new Aviso("error", "Error al validar teléfono: " + e.getMessage()));
+            throw e;
+        }
+        return null;
+    }
+
+    private ArrayList<String> getParticipantes(int conv_id, Connection conn)  throws SQLException{
+        ArrayList<String> participantes = new ArrayList<>();
+
+        String query = """               
+            SELECT u.nombre AS participante
+            FROM conversaciones c
+            INNER JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+            INNER JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+            INNER JOIN usuarios u ON cu2.usuario_id = u.id
+            WHERE cu1.usuario_id = ? AND cu1.conversacion_id = ?
+            LIMIT 0, 50;
+            """;
+
+        //Ejecutar la query
+        PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, usuarioActualID);
+        stmt.setInt(2, conv_id);
+        ResultSet rs = stmt.executeQuery();
+        rs.getFetchSize();
+
+        while (rs.next()) {
+            participantes.add(rs.getString("participante"));
+        }
+
+
+        return participantes;
+    }
+
+    private ArrayList<String> getTelParticipantes(int conv_id, Connection conn)  throws SQLException{
+        ArrayList<String> telefonos = new ArrayList<>();
+
+        String query = """               
+            SELECT u.telefono AS participante
+            FROM conversaciones c
+            INNER JOIN conversacion_usuario cu1 ON c.id = cu1.conversacion_id
+            INNER JOIN conversacion_usuario cu2 ON c.id = cu2.conversacion_id
+            INNER JOIN usuarios u ON cu2.usuario_id = u.id
+            WHERE cu1.usuario_id = ? AND cu1.conversacion_id = ?
+            LIMIT 0, 50;
+            """;
+
+        //Ejecutar la query
+        PreparedStatement stmt = conn.prepareStatement(query);
+        stmt.setInt(1, usuarioActualID);
+        stmt.setInt(2, conv_id);
+        ResultSet rs = stmt.executeQuery();
+        rs.getFetchSize();
+
+        while (rs.next()) {
+            telefonos.add(rs.getString("participante"));
+        }
+
+
+        return telefonos;
+    }
+    
 }
+
