@@ -5,7 +5,9 @@ import Respuestas.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumnModel;
+import javax.swing.table.TableModel;
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
@@ -23,8 +25,7 @@ public class GUI extends JFrame {
     //Modelo para modificar la tabla de mensajes
     private static JPanel mensajesPanel;
     private static JScrollPane scrollMensajes;
-    private static DefaultTableModel modeloMensajes;
-
+    private static JPanel panelMensaje;
     //Modelo para mostrar los usuarios conectados
     private static JList<String> listaUsuarios;
     private static DefaultListModel<String> modeloUsuariosConectados;
@@ -64,9 +65,6 @@ public class GUI extends JFrame {
         JPanel panelPrincipal = new JPanel();
         panelPrincipal.setLayout(new BorderLayout()); // Layout base para poder colocar paneles Norte, Centro, Este
 
-// === PANEL CENTRAL (conversaciones a la izquierda, mensajes a la derecha) ===
-        JPanel panelCentro = new JPanel();
-        panelCentro.setLayout(new BoxLayout(panelCentro, BoxLayout.X_AXIS)); // Horizontal
 
 // === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
@@ -77,7 +75,11 @@ public class GUI extends JFrame {
                 return false;
             }
         };
-        tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
+        tablaConversaciones.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                cargarMensajes();
+            }
+        });
         TableColumnModel tcm = tablaConversaciones.getColumnModel();
         tcm.removeColumn( tcm.getColumn(0));
 
@@ -88,25 +90,9 @@ public class GUI extends JFrame {
         panelConversaciones.setPreferredSize(new Dimension(250, 0));
         panelConversaciones.add(scrollConversaciones, BorderLayout.CENTER);
 
-// === PANEL DE MENSAJES ===
-        mensajesPanel = new JPanel();
-        mensajesPanel.setLayout(new BoxLayout(mensajesPanel, BoxLayout.Y_AXIS));
-        scrollMensajes = new JScrollPane(mensajesPanel);
-        scrollMensajes.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-
-
-        JPanel panelMensajes = new JPanel();
-        panelMensajes.setLayout(new BorderLayout());
-        panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
-        panelMensajes.add(scrollMensajes, BorderLayout.CENTER);
-
-// === AGREGAR CONVERSACIONES Y MENSAJES A PANEL CENTRAL ===
-        panelCentro.add(panelConversaciones);
-        panelCentro.add(Box.createRigidArea(new Dimension(10, 0))); // Separación entre paneles
-        panelCentro.add(panelMensajes);
-
 // === PANEL INFERIOR: MENSAJE Y BOTÓN ENVIAR ===
-        JPanel panelMensaje = new JPanel();
+        panelMensaje = new JPanel();
+        panelMensaje.setVisible(false);
         panelMensaje.setLayout(new BoxLayout(panelMensaje, BoxLayout.X_AXIS));
         panelMensaje.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -116,6 +102,34 @@ public class GUI extends JFrame {
         panelMensaje.add(Box.createRigidArea(new Dimension(10, 0)));
         panelMensaje.add(btnEnviar);
         btnEnviar.addActionListener(_ -> enviarMensaje());
+        txtMensaje.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER && !e.isShiftDown()) {
+                    e.consume(); // Evita que agregue un salto de línea
+                    enviarMensaje();
+                }
+            }
+        });
+
+// === PANEL DE MENSAJES ===
+        mensajesPanel = new JPanel();
+        mensajesPanel.setLayout(new BoxLayout(mensajesPanel, BoxLayout.Y_AXIS));
+        scrollMensajes = new JScrollPane(mensajesPanel);
+        scrollMensajes.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        scrollMensajes.getVerticalScrollBar().setUnitIncrement(18);
+
+        JPanel panelMensajes = new JPanel();
+        panelMensajes.setLayout(new BorderLayout());
+        panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
+        panelMensajes.add(scrollMensajes, BorderLayout.CENTER);
+        panelMensajes.add(panelMensaje, BorderLayout.SOUTH);
+
+// === AGREGAR CONVERSACIONES Y MENSAJES A PANEL CENTRAL ===
+        JSplitPane panelCentro = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, panelConversaciones, panelMensajes);
+        panelCentro.setResizeWeight(0.025);
+
+
 
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
         int localwidth = 200;
@@ -156,7 +170,6 @@ public class GUI extends JFrame {
 
     // === ENSAMBLADO FINAL ===
         panelPrincipal.add(panelCentro, BorderLayout.CENTER);
-        panelPrincipal.add(panelMensaje, BorderLayout.SOUTH);
         panelPrincipal.add(panelDerecho, BorderLayout.EAST);
 
         add(panelPrincipal);
@@ -246,6 +259,8 @@ public class GUI extends JFrame {
         if (fila == -1) return;
 
         int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
+        panelMensaje.setVisible(true);
+        scrollMensajes.getVerticalScrollBar().setValue(scrollMensajes.getVerticalScrollBar().getMaximum());
 
         RequestMensajes(conversationId);
     }
@@ -291,7 +306,10 @@ public class GUI extends JFrame {
             // Refresca la vista
             mensajesPanel.revalidate();
             mensajesPanel.repaint();
-            scrollMensajes.getVerticalScrollBar().setValue(scrollMensajes.getVerticalScrollBar().getMaximum());
+            SwingUtilities.invokeLater(() -> {
+                JScrollBar vertical = scrollMensajes.getVerticalScrollBar();
+                vertical.setValue(vertical.getMaximum());
+            });
 
         }
 
@@ -312,7 +330,6 @@ public class GUI extends JFrame {
         RequestEnviarMsg(txtMensaje.getText(), conversationId);
 
         txtMensaje.setText("");
-        cargarMensajes();
     }
 
     private void crearGrupo() {
@@ -334,8 +351,9 @@ public class GUI extends JFrame {
         topPanel.add(nombreGrupoField, BorderLayout.CENTER);
         grupo.add(topPanel, BorderLayout.NORTH);
 
+        TableModel tableModel = modeloConversaciones;
 
-        JTable nombresTable = new JTable(modeloConversaciones);
+        JTable nombresTable = new JTable(tableModel);
         nombresTable.setRowSelectionAllowed(true);
         nombresTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         TableColumnModel tcm = nombresTable.getColumnModel();
