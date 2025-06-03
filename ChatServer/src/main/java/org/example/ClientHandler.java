@@ -430,11 +430,15 @@ public class ClientHandler extends Thread {
                                 insertar.setInt(idx++, idUsuario);
                             }
                             insertar.executeUpdate();
-
-                            enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion, conn), request.getNombreGrupo()));
+                            for(String t : request.getTelefonos()){
+                                if(writers.containsKey(t))
+                                    enviarRespuesta(new GroupParticipants(idConversacion, getParticipantes(idConversacion, conn), request.getNombreGrupo()), writers.get(t));
+                            }
                         }
                     }
                 }
+
+
 
                 conn.commit(); // Finaliza transacción
 
