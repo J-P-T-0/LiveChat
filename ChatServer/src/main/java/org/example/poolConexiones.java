@@ -5,6 +5,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 
 public class poolConexiones implements AutoCloseable {
@@ -59,20 +60,25 @@ public class poolConexiones implements AutoCloseable {
             Connection conn = conexiones.poll();// Retorna y remueve el primer elemento de la cola
             if (conn != null) {
                 if (conn.isValid(5)) {
+                    System.out.println("Conn exitosa");
                     return conn;
                 } else {
+                    System.out.println("Conn invalida, intentando cerrar");
                     conn.close();
                     conexionesCreadas--;
                 }
             } else if (conexionesCreadas < CONEXIONES_SIMULTANEAS) {
+                System.out.println("Intenta crearConexion");
                 Connection nueva = crearConexion();
                 conexionesCreadas++;
+                System.out.println("Logra crearConexion");
                 return nueva;
             } else {
+                System.out.println("Last conn resort");
                 try {
-                    conn = conexiones.take(); // Bloquea hasta que haya una conexión disponible
-                    if (conn.isValid(5)) {
-                        return conn;
+                    conn = conexiones.poll(5, TimeUnit.SECONDS);
+                    if (conn == null) {
+                        throw new SQLException("Timeout al esperar una conexión disponible");
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -86,12 +92,19 @@ public class poolConexiones implements AutoCloseable {
     public void liberarConexion(Connection conexion) throws SQLException {
         if (conexion == null || conexion.isClosed()) {
             conexionesCreadas--;
+            System.err.println("Conexión descartada por estar cerrada");
             return;
         }
 
         if (!cerrado) {
-            conexiones.offer(conexion);
+            System.out.println("offer conexion");
+            if(!conexiones.offer(conexion)){
+                System.out.println("no offer");
+                conexion.close();
+                conexionesCreadas--;
+            }
         } else {
+            System.out.println("cierra conexion");
             conexion.close();
             conexionesCreadas--;
         }
@@ -105,6 +118,7 @@ public class poolConexiones implements AutoCloseable {
             try {
                 c.close();
             } catch (SQLException e) {
+                System.err.println(e.getMessage());
                 if (errores == null) errores = e;//Se almacenan todos los errores
                 else errores.addSuppressed(e);
             }

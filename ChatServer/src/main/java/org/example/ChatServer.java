@@ -7,14 +7,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChatServer implements AutoCloseable {
     private int puerto;
@@ -25,11 +24,12 @@ public class ChatServer implements AutoCloseable {
     public static final ObjectMapper traductorJson = new ObjectMapper();
 
     //telefonos como keys
-    public static Map<String, PrintWriter> writers = new HashMap<String, PrintWriter>();
+    public static Map<String, PrintWriter> writers = new ConcurrentHashMap<>();
 
     public ChatServer(int puerto) throws SQLException {
         this.puerto = puerto;
         this.poolConn = new poolConexiones();
+        System.out.println("Pool iniciado con éxito");
     }
 
     public void start() {
@@ -60,7 +60,7 @@ public class ChatServer implements AutoCloseable {
     @Override
     public void close() throws Exception {
     int DelayDeCierre = 20*1000; // 20 segundos
-    
+
     ejecutando = false;
 
     // Notificar a todos los clientes del cierre, bloque sincronized porque writers es compartido con Client handler
@@ -69,8 +69,8 @@ public class ChatServer implements AutoCloseable {
             try {
                 PrintWriter output = entry.getValue();
                 enviarRespuesta(
-                    new Aviso("Servidor Cerrando!", 
-                             "El servidor cerrará en " + (DelayDeCierre/1000) + " segundos"), 
+                    new Aviso("Servidor Cerrando!",
+                             "El servidor cerrará en " + (DelayDeCierre/1000) + " segundos"),
                     output
                 );
                 output.flush();//vaciar buffer
