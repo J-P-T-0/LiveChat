@@ -18,24 +18,26 @@ import static Main.CreateRequests.*;
 
 public class GUI extends JFrame {
     //Tabla de conversaciones
-    private static LoginAuth loginInfo;
-    private static JTable tablaConversaciones;
+    private static LoginAuth loginInfo;              // Información del usuario
+    private static JTable tablaConversaciones;       // Lista de chats
     private static DefaultTableModel modeloConversaciones;
 
     //Modelo para modificar la tabla de mensajes
-    private static JPanel mensajesPanel;
+    private static JPanel mensajesPanel;            // Panel de mensajes
     private static JScrollPane scrollMensajes;
     private static JPanel panelMensaje;
     //Modelo para mostrar los usuarios conectados
-    private static JList<String> listaUsuarios;
+    private static JList<String> listaUsuarios;     // Lista de usuarios conectados
     private static DefaultListModel<String> modeloUsuariosConectados;
 
     //Mensaje
     private JTextField txtMensaje;
 
     //Mapea nombres a ID de conversaciones para que se vea mas bonito
-    private static HashMap<String, String> contactos;
-    private static HashMap<Integer, String> conversaciones;
+    private static HashMap<String, String> contactos;       // Mapeo teléfono->nombre
+    private static HashMap<Integer, String> conversaciones; // Mapeo ID->teléfono
+
+    private static ArrayList<DatosConversacion> conversacionesUsuario = new ArrayList<>();
 
     private static GUI frame;
 
@@ -218,10 +220,12 @@ public class GUI extends JFrame {
     /*Funciones ya del chat*/
 
     public static void cargarConversaciones(ReturnConversaciones respuesta) {
-
-        modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
+        modeloConversaciones.setRowCount(0);
+        conversacionesUsuario.clear(); // Limpiamos la lista de conversaciones usuario
+        
         for (DatosConversacion conv : respuesta.getDatosConversacion()) {
-
+            conversacionesUsuario.add(conv); // Guardamos la conversación
+            
             if (!conv.isEsGrupo()) {
                 String destinatario = " ";
                 String telefono = " ";
@@ -279,8 +283,23 @@ public class GUI extends JFrame {
 
         int conversationId = Integer.parseInt(tablaConversaciones.getModel().getValueAt(fila, 0).toString());
 
+        // Limpiar el panel y su título antes de mostrar los nuevos mensajes
+        mensajesPanel.removeAll();
+        mensajesPanel.setBorder(BorderFactory.createTitledBorder("")); // Título vacío por defecto
+
         if(respuesta.getConvID() == conversationId) {
-            mensajesPanel.removeAll(); // Limpia mensajes anteriores
+            for (DatosConversacion conv : conversacionesUsuario) {
+                if (conv.getId() == conversationId) {
+                    boolean esGrupo = conv.isEsGrupo();
+                    if (esGrupo) mensajesPanel.setBorder(BorderFactory.createTitledBorder(
+                        "Grupo " + conv.getNombre() + " : " + conv.getParticipantes()
+                    ));
+                    else mensajesPanel.setBorder(BorderFactory.createTitledBorder(
+                        "Chat con: " + conv.getParticipantes()
+                    ));
+                    break;
+                }
+            }
 
             for (DatosMensajes e : respuesta.getDatosMensajes()) {
                 JPanel burbuja = new JPanel();
