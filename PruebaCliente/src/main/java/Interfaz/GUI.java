@@ -48,8 +48,9 @@ public class GUI extends JFrame {
 
     //GUI
     private void initComponents() {
+        int heightOfFrame = 600;
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setSize(800, 600);
+        setSize(800, heightOfFrame);
         setTitle("Conversaciones de " + loginInfo.getNombre());
 
 // === PANEL PRINCIPAL ===
@@ -115,9 +116,10 @@ public class GUI extends JFrame {
         panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
         JButton btnNuevoChat = new JButton("Nuevo Chat ");
-        btnNuevoChat.setPreferredSize(new Dimension(localwidth, 0));
+        btnNuevoChat.setPreferredSize(new Dimension(localwidth, 30));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
+        btnNuevoGrupo.setPreferredSize(new Dimension(localwidth, 30));
 
         //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
         JList<String> listaUsuarios = new JList<>();
@@ -127,12 +129,14 @@ public class GUI extends JFrame {
         listaUsuarios.setFixedCellHeight(20);
         listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
 
+        JScrollPane scrollUsuarios = new JScrollPane(listaUsuarios);
+        scrollUsuarios.setPreferredSize(new Dimension(localwidth, 100));
 
         panelDerecho.add(btnNuevoChat);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
         panelDerecho.add(btnNuevoGrupo);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
-        panelDerecho.add(listaUsuarios);
+        panelDerecho.add(scrollUsuarios);
 
     // === ENSAMBLADO FINAL ===
         panelPrincipal.add(panelCentro, BorderLayout.CENTER);
