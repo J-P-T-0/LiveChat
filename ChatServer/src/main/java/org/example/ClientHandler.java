@@ -8,6 +8,8 @@ import java.io.*;
 import java.net.Socket;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 //importar librerias para JSON
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -95,6 +97,8 @@ public class ClientHandler extends Thread {
 
                         case Close closeConn -> closeConn(closeConn);
 
+                        case GetUsusEnLinea _ -> usuariosEnLinea();
+
                         default-> enviarRespuesta(new Aviso("error", "Comando no reconocido"));
                     }
                 } catch (Exception e) {
@@ -118,9 +122,10 @@ public class ClientHandler extends Thread {
     private void login(Login request) throws JsonProcessingException {
         try {
             if (autenticarUsuario(request.getTelefono(), request.getPassword())) {
-                String nombre = getNombreUsu(request.getTelefono());
+                String nombre = getUsuFromTel(request.getTelefono());
                 enviarRespuesta(new LoginAuth(nombre, request.getTelefono()));
                 writers.put(request.getTelefono(), salida);
+                usuariosEnLinea();
             } else {
                 enviarRespuesta(new Aviso("éxito","Contraseña o teléfono incorrectos"));
             }
@@ -171,7 +176,7 @@ public class ClientHandler extends Thread {
         return participantes;
     }
 
-private void cargarConversaciones() throws SQLException, JsonProcessingException {
+    private void cargarConversaciones() throws SQLException, JsonProcessingException {
     Connection conn = poolConexiones.obtenerConexion();
     try {
         String sql = """
@@ -356,7 +361,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
                         int nuevoIdConversacion = claves.getInt(1);
 
                         String remitente = request.getRemitente();
-                        String destinatario = getNombreUsu(request.getTelefonoDestino());
+                        String destinatario = getUsuFromTel(request.getTelefonoDestino());
 
                         // Hace 2 inserciones, una para cada usuario en la tabla de unión entre usuario y conversación
                         String insertUsuarios = "INSERT INTO conversacion_usuario (conversacion_id, usuario_id) VALUES (?, ?), (?, ?)";
@@ -486,6 +491,7 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
             salida.close();
             entrada.close();
             socket.close();
+            usuariosEnLinea();
         }catch (Exception e) {
             System.err.println("Error al cerrar conexión: " + e.getMessage());
         }finally {
@@ -495,13 +501,31 @@ private void cargarConversaciones() throws SQLException, JsonProcessingException
         }
     }
 
+    private void usuariosEnLinea () throws JsonProcessingException{
+        try{
+            //<telefono, nombre>
+            Map<String, String> nombreDelTelefono= new HashMap<>();
+            for(String s : writers.keySet()){
+                System.out.println(s + ": " + writers.get(s));
+                if(writers.get(s) != null) {
+                    nombreDelTelefono.put(s, getUsuFromTel(s));
+                }
+            }
+            for(String s : nombreDelTelefono.keySet()){
+                enviarRespuesta(new ReturnUsusEnLinea(nombreDelTelefono),writers.get(s));
+            }
+        }catch(SQLException e){
+            enviarRespuesta(new Aviso("error","No se pudieron obtener los usuarios en línea."));
+        }
+    }
+
     /*
     *
     * Sección de métodos adicionales
     *
     * */
 
-    private String getNombreUsu(String telefono) throws SQLException {
+    private String getUsuFromTel(String telefono) throws SQLException {
         Connection conn = poolConexiones.obtenerConexion();
         try {
         String sql = "SELECT nombre FROM usuarios WHERE telefono = ?";

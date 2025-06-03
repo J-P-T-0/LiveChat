@@ -75,10 +75,12 @@ public class Conexion implements Runnable {
 
                         case CloseClient _ -> disconnect();
 
+                        case ReturnUsusEnLinea R -> RefreshUsuariosConectados(R);
+
                         default -> System.out.println("lol");
                     }
                 } catch (Exception e) {
-                    System.out.println("lol q mal");
+                    System.out.println("El error en 'Conexion' es: "+e.getMessage());
                 }
             }
         } catch (Exception e) {

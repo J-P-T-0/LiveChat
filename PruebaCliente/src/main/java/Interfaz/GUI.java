@@ -22,6 +22,9 @@ public class GUI extends JFrame {
     //Modelo para modificar la tabla de mensajes
     private static DefaultTableModel modeloMensajes;
 
+    //Modelo para mostrar los usuarios conectados
+    private static DefaultListModel<String> modeloUsuariosConectados;
+
     //Mensaje
     private JTextField txtMensaje;
 
@@ -39,6 +42,7 @@ public class GUI extends JFrame {
 
         //evento para cargar conversaciones
         RequestConversaciones();
+        RequestGetUsusEnLinea();
     }
 
 
@@ -104,20 +108,31 @@ public class GUI extends JFrame {
         btnEnviar.addActionListener(_ -> enviarMensaje());
 
 // === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
+        int localwidth = 150;
         JPanel panelDerecho = new JPanel();
         panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
         panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        panelDerecho.setPreferredSize(new Dimension(150, 0));
+        panelDerecho.setPreferredSize(new Dimension(localwidth, 0));
 
         JButton btnNuevoChat = new JButton("Nuevo Chat ");
-        btnNuevoChat.setPreferredSize(new Dimension(150, 0));
+        btnNuevoChat.setPreferredSize(new Dimension(localwidth, 0));
         btnNuevoChat.addActionListener(_ -> crearDM());
         JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
+
+        //== LISTA QUE MUESTRA LOS USUARIOS CONECTADOS ==//
+        JList<String> listaUsuarios = new JList<>();
+        modeloUsuariosConectados= new DefaultListModel<>();
+        listaUsuarios.setModel(modeloUsuariosConectados);
+        listaUsuarios.setFixedCellWidth(localwidth);
+        listaUsuarios.setFixedCellHeight(20);
+        listaUsuarios.setPreferredSize(new Dimension(localwidth, 0));
 
 
         panelDerecho.add(btnNuevoChat);
         panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
         panelDerecho.add(btnNuevoGrupo);
+        panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
+        panelDerecho.add(listaUsuarios);
 
     // === ENSAMBLADO FINAL ===
         panelPrincipal.add(panelCentro, BorderLayout.CENTER);
@@ -136,6 +151,15 @@ public class GUI extends JFrame {
             }
         });
 
+    }
+
+    //Funcion de actualizacion de los usuarios
+    public static void RefreshUsuariosConectados(ReturnUsusEnLinea respuesta){
+        modeloUsuariosConectados.clear();
+        for(String u: respuesta.getUsuariosEnLinea().keySet()){
+            if(u.equals(loginInfo.getTelefono())) continue;
+            modeloUsuariosConectados.addElement(u);
+        }
     }
 
     /*Funciones ya del chat*/

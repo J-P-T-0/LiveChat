@@ -162,15 +162,13 @@ public class PruebaCliente {
 
     public static void main(String[] args) {
         PruebaCliente app = new PruebaCliente();
-        app.conectarAServidor();
-        app.login();
-        app.getConversaciones();
-        app.getMensajes();
-        app.enviarMensaje();
-        app.crearConvPriv();
-        //app.crearGrupo();
-        app.marcarLeido();
-        app.getEstadoMensaje();
+        try {
+            Conexion.connect("127.0.0.1",1234);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        CreateRequests.RequestLogin("1234567891","julieta123");
+        CreateRequests.RequestGetUsusEnLinea();
     }
 }
 
