@@ -1,199 +1,256 @@
 package Interfaz;
 
-import Requests.EnviarMensaje;
-import Requests.GetConversaciones;
-import Requests.GetMensajes;
 import Respuestas.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 
-public class GUI extends JFrame implements Runnable {
+import static Main.Conexion.*;
+import static Main.CreateRequests.*;
+
+public class GUI extends JFrame {
     //Tabla de conversaciones
-    private JTable tablaConversaciones;
-    private DefaultTableModel modeloConversaciones;
-    //tabla de mensajes
-    private JTable tablaMensajes;
-    private DefaultTableModel modeloMensajes;
+    private static LoginAuth loginInfo;
+    private static JTable tablaConversaciones;
+    private static DefaultTableModel modeloConversaciones;
+
+    //Modelo para modificar la tabla de mensajes
+    private static DefaultTableModel modeloMensajes;
+
     //Mensaje
     private JTextField txtMensaje;
 
-    //Cuestiones del server
-    private Socket socket;
-    private PrintWriter salida;
-    private BufferedReader entrada;
-    private ObjectMapper objectMapper = new ObjectMapper();
+    //Mapea nombres a ID de conversaciones para que se vea mas bonito
+    private static Map<String, Integer> conversaciones;
+
+    private static GUI frame;
 
     //constructor
-    public GUI(LoginAuth loginInfo, Socket socket) {
-        this.socket = socket;
-        try {
-            salida = new PrintWriter(socket.getOutputStream(), true);
-            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        } catch (Exception e) {
-            mostrarError("Error al conectar con el servidor.");
-        }
+    public GUI(LoginAuth loginInfo) {
+        GUI.loginInfo = loginInfo;
+        conversaciones = new HashMap<>();
         initComponents();
-        cargarConversaciones();
+        frame = this;
+
+        //evento para cargar conversaciones
+        RequestConversaciones();
     }
+
 
     //GUI
     private void initComponents() {
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(800, 600);
-        setLayout(new BorderLayout());
+        setTitle("Conversaciones de " + loginInfo.getNombre());
 
-        // Conversaciones
+// === PANEL PRINCIPAL ===
+        JPanel panelPrincipal = new JPanel();
+        panelPrincipal.setLayout(new BorderLayout()); // Layout base para poder colocar paneles Norte, Centro, Este
+
+// === PANEL CENTRAL (conversaciones a la izquierda, mensajes a la derecha) ===
+        JPanel panelCentro = new JPanel();
+        panelCentro.setLayout(new BoxLayout(panelCentro, BoxLayout.X_AXIS)); // Horizontal
+
+// === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
-        modeloConversaciones.setColumnIdentifiers(new String[]{"ID", "Nombre"});
-        tablaConversaciones = new JTable(modeloConversaciones);
-        tablaConversaciones.getSelectionModel().addListSelectionListener(e -> cargarMensajes());
+        modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
+        tablaConversaciones = new JTable(modeloConversaciones) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
 
-        // Mensajes
+        JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
+        JPanel panelConversaciones = new JPanel();
+        panelConversaciones.setLayout(new BorderLayout());
+        panelConversaciones.setBorder(BorderFactory.createTitledBorder("Conversaciones"));
+        panelConversaciones.setPreferredSize(new Dimension(250, 0));
+        panelConversaciones.add(scrollConversaciones, BorderLayout.CENTER);
+
+// === PANEL DE MENSAJES ===
         modeloMensajes = new DefaultTableModel();
         modeloMensajes.setColumnIdentifiers(new String[]{"Remitente", "Mensaje", "Fecha"});
-        tablaMensajes = new JTable(modeloMensajes);
+        JTable tablaMensajes = new JTable(modeloMensajes);
+        tablaMensajes.setEnabled(false);
 
-        // Entrada de mensaje
-        JPanel panelMensaje = new JPanel(new BorderLayout());
+        JScrollPane scrollMensajes = new JScrollPane(tablaMensajes);
+        JPanel panelMensajes = new JPanel();
+        panelMensajes.setLayout(new BorderLayout());
+        panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
+        panelMensajes.add(scrollMensajes, BorderLayout.CENTER);
+
+// === AGREGAR CONVERSACIONES Y MENSAJES A PANEL CENTRAL ===
+        panelCentro.add(panelConversaciones);
+        panelCentro.add(Box.createRigidArea(new Dimension(10, 0))); // Separación entre paneles
+        panelCentro.add(panelMensajes);
+
+// === PANEL INFERIOR: MENSAJE Y BOTÓN ENVIAR ===
+        JPanel panelMensaje = new JPanel();
+        panelMensaje.setLayout(new BoxLayout(panelMensaje, BoxLayout.X_AXIS));
+        panelMensaje.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
         txtMensaje = new JTextField();
         JButton btnEnviar = new JButton("Enviar");
-        panelMensaje.add(txtMensaje, BorderLayout.CENTER);
-        panelMensaje.add(btnEnviar, BorderLayout.EAST);
+        panelMensaje.add(txtMensaje);
+        panelMensaje.add(Box.createRigidArea(new Dimension(10, 0)));
+        panelMensaje.add(btnEnviar);
+        btnEnviar.addActionListener(_ -> enviarMensaje());
 
-        btnEnviar.addActionListener(e -> enviarMensaje());
+// === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
+        JPanel panelDerecho = new JPanel();
+        panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
+        panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panelDerecho.setPreferredSize(new Dimension(150, 0));
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tablaConversaciones), new JScrollPane(tablaMensajes));// como en el whats app real!
-        splitPane.setDividerLocation(250);
+        JButton btnNuevoChat = new JButton("Nuevo Chat ");
+        btnNuevoChat.setPreferredSize(new Dimension(150, 0));
+        btnNuevoChat.addActionListener(_ -> crearDM());
+        JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
 
-        add(splitPane, BorderLayout.CENTER);
-        add(panelMensaje, BorderLayout.SOUTH);
-    }
 
-    private void mostrarError(String msg) {
-        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
-    }
+        panelDerecho.add(btnNuevoChat);
+        panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
+        panelDerecho.add(btnNuevoGrupo);
 
-    //funciones ya del chat
-    private void cargarConversaciones() {
-        try{
-            String jsonRequest = objectMapper.writeValueAsString(new GetConversaciones());
-            System.out.println(jsonRequest);
-            salida.println(jsonRequest);
+    // === ENSAMBLADO FINAL ===
+        panelPrincipal.add(panelCentro, BorderLayout.CENTER);
+        panelPrincipal.add(panelMensaje, BorderLayout.SOUTH);
+        panelPrincipal.add(panelDerecho, BorderLayout.EAST);
 
-            String jsonResponse = entrada.readLine();
-            System.out.println(jsonResponse);
-            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-            if(respuesta instanceof ReturnConversaciones){
-                ReturnConversaciones returnConversaciones = (ReturnConversaciones) respuesta;
-                for(DatosConversacion e: returnConversaciones.getDatosConversacion()){
-                        modeloConversaciones.addRow(new Object[]{
-                                e.getId(),
-                                e.getNombre()
-                        });
-                }
-            }else if (respuesta instanceof Aviso){
-                Aviso aviso = (Aviso) respuesta;
-                mostrarError(aviso.getDescripcion());
+        add(panelPrincipal);
+        pack();
+
+    // === CERRAR PROGRAMA ===
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                RequestClose(loginInfo.getTelefono());
+                System.exit(0);
             }
-        }catch (Exception e){
-            System.out.println("Error al obtener conversación: " + e.getMessage());
-        }
+        });
+
     }
+
+    /*Funciones ya del chat*/
+
+    public static void cargarConversaciones(ReturnConversaciones respuesta) {
+
+        modeloConversaciones.setRowCount(0); // Limpia por si ya había algo
+        for (DatosConversacion conv : respuesta.getDatosConversacion()) {
+            String destinatario = " ";
+
+            if (!conv.isEsGrupo()) {
+                for(String p: conv.getParticipantes()) {
+                    if(!p.equals(loginInfo.getNombre())) {
+                        destinatario = p;
+                        break;
+                    }
+                }
+                conversaciones.put(destinatario, conv.getId());
+
+                modeloConversaciones.addRow(new Object[]{
+                        destinatario
+                });
+            }
+            //Aqui ya con un else nomas y cargas el nombre del grupo
+        }
+
+    }
+
 
     private void cargarMensajes() {
         int fila = tablaConversaciones.getSelectedRow();
         if (fila == -1) return;
-        int conversationId = (int) modeloConversaciones.getValueAt(fila, 0);
 
-        new Thread(() -> {
-            try {
-                String jsonPrevResponse = null;
-                while (!Thread.currentThread().isInterrupted()) {
-                    String jsonRequest = objectMapper.writeValueAsString(new GetMensajes(conversationId));
-                    salida.println(jsonRequest);
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
 
-                    String jsonResponse = entrada.readLine();
+        int conversationId = conversaciones.get(destinatario);
 
-                    // Si la respuesta es igual a la anterior, esperar un momento y continuar
-                    if (jsonResponse.equals(jsonPrevResponse)) {
-                        Thread.sleep(500); // Esperar 500ms antes de la siguiente verificación
-                        continue;
-                    }
-
-                    System.out.println("Nuevo mensaje recibido");
-                    Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-
-                    if (respuesta instanceof ReturnMensajes) {
-                        ReturnMensajes returnMensajes = (ReturnMensajes) respuesta;
-
-                        // Actualizar la UI en el hilo de eventos de Swing
-                        SwingUtilities.invokeLater(() -> {
-                            modeloMensajes.setRowCount(0);
-                            for (DatosMensajes e : returnMensajes.getDatosMensajes()) {
-                                modeloMensajes.addRow(new Object[]{
-                                        e.getNombre(),
-                                        e.getMensaje(),
-                                        e.getFecha()
-                                });
-                            }
-                        });
-                    } else if (respuesta instanceof Aviso) {
-                        Aviso aviso = (Aviso) respuesta;
-                        SwingUtilities.invokeLater(() ->
-                                mostrarError(aviso.getDescripcion())
-                        );
-                    }
-
-                    jsonPrevResponse = jsonResponse;
-                }
-            } catch (Exception e) {
-                System.out.println("Error al obtener mensajes: " + e.getMessage());
-            }
-        }).start();
+        RequestMensajes(conversationId);
     }
+
+    public static void RefreshMensajes(ReturnMensajes respuesta) {
+        int fila = tablaConversaciones.getSelectedRow();
+        if (fila == -1) return;
+
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+
+        int conversationId = conversaciones.get(destinatario);
+        if(respuesta.getConvID() == conversationId) {
+            SwingUtilities.invokeLater(() -> {
+                modeloMensajes.setRowCount(0); // Limpia la tabla de mensajes
+                for (DatosMensajes e : respuesta.getDatosMensajes()) {
+                    modeloMensajes.addRow(new Object[]{
+                            e.getNombre(),
+                            e.getMensaje(),
+                            e.getFecha()
+                    });
+                }
+            });
+        }
+
+    }
+
 
     private void enviarMensaje() {
         int fila = tablaConversaciones.getSelectedRow();
+
         if (fila == -1 || txtMensaje.getText().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Seleccione una conversación y escriba un mensaje");
             return;
         }
         //se obtiene el valor de la fila seleccionada como el indice de la conversacion
-        int conversationId = (int) modeloConversaciones.getValueAt(fila, 0);
-        try{
-            String jsonRequest = objectMapper.writeValueAsString(new EnviarMensaje(txtMensaje.getText(),conversationId));
-            System.out.println(jsonRequest);
-            salida.println(jsonRequest);
+        String destinatario = modeloConversaciones.getValueAt(fila, 0).toString();
+        int conversationId = conversaciones.get(destinatario);
 
-            String jsonResponse = entrada.readLine();
-            System.out.println(jsonResponse);
-            Respuesta respuesta = objectMapper.readValue(jsonResponse, Respuesta.class);
-            if(respuesta instanceof ReturnMensajes){
-                cargarMensajes();
-            }else if (respuesta instanceof Aviso){
-                Aviso aviso = (Aviso) respuesta;
-                mostrarError(aviso.getDescripcion());
-            }
-        }catch (Exception e){
-            System.out.println("Error al enviar mensaje: " + e.getMessage());
-        }
+        RequestEnviarMsg(txtMensaje.getText(), conversationId);
+
         txtMensaje.setText("");
         cargarMensajes();
     }
 
-    @Override
-    public void run() {
-        cargarMensajes();
+
+    //clase dedicada para la creacion de chats 1v1
+    private void crearDM() {
+        String telefonoDestino = JOptionPane.showInputDialog(this, "Número del usuario con quien quieres chatear:");
+
+        if(telefonoDestino == null) return;
+
+        if (telefonoDestino.isBlank()) {
+            JOptionPane.showMessageDialog(this, "Ingresa un teléfono");
+            return;
+        }
+
+        if(telefonoDestino.equals(loginInfo.getTelefono())){
+            JOptionPane.showMessageDialog(this, "No puedes añadir tu propio número.");
+            return;
+        }
+
+        RequestNuevoDM(telefonoDestino, loginInfo.getNombre());
     }
+
+    public static void RefreshConversaciones(ReturnConvID convID) {
+        // Mostrar mensaje de éxito
+        JOptionPane.showMessageDialog(frame, "¡Conversación con " + convID.getDestinatario() + " creada!");
+
+        //Añade conversacion al mapa
+        conversaciones.put(convID.getDestinatario(), convID.getConvID());
+
+        // Agregar manualmente la conversación a la tabla
+        modeloConversaciones.addRow(new Object[]{
+                convID.getDestinatario()
+        });
+    }
+
+    public static void MostrarAviso(Aviso aviso) {
+        JOptionPane.showMessageDialog(frame, aviso.getDescripcion(), aviso.getEstado(), JOptionPane.ERROR_MESSAGE);
+    }
+
 }
