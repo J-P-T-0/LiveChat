@@ -20,7 +20,6 @@ public class ChatLogin extends JFrame {
         conectarAServidor();
         initComponents();
         frame = this;
-
     }
 
     private void conectarAServidor() {
@@ -36,10 +35,10 @@ public class ChatLogin extends JFrame {
     private void initComponents(){
         setTitle("Login");
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        setLocationRelativeTo(null);
         setSize(400, 250);
         setLayout(new GridLayout(4,2));
         setResizable(false);
+        setLocationRelativeTo(null);
 
         add(new JLabel("Telefono"));
         txtTelefono = new JTextField();
@@ -56,7 +55,7 @@ public class ChatLogin extends JFrame {
 
         add(new JLabel("No te has registrado?"));
         btnRegistrar = new JButton("Registrar");
-        btnRegistrar.addActionListener(_ -> {new Registro().setVisible(true); this.dispose();});
+        btnRegistrar.addActionListener(_ -> new Registro().setVisible(true));
         add(btnRegistrar);
 
         setVisible(true);
@@ -115,7 +114,7 @@ public class ChatLogin extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(()-> new ChatLogin().setVisible(true));
+        new ChatLogin().setVisible(true);
     }
 
 }

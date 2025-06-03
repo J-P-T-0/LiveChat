@@ -3,6 +3,7 @@ package Interfaz;
 import Respuestas.*;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.io.IOException;
@@ -45,58 +46,96 @@ public class GUI extends JFrame {
     private void initComponents() {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setSize(800, 600);
-        setLayout(new BorderLayout());
-
         setTitle("Conversaciones de " + loginInfo.getNombre());
 
-        // Conversaciones
+// === PANEL PRINCIPAL ===
+        JPanel panelPrincipal = new JPanel();
+        panelPrincipal.setLayout(new BorderLayout()); // Layout base para poder colocar paneles Norte, Centro, Este
+
+// === PANEL CENTRAL (conversaciones a la izquierda, mensajes a la derecha) ===
+        JPanel panelCentro = new JPanel();
+        panelCentro.setLayout(new BoxLayout(panelCentro, BoxLayout.X_AXIS)); // Horizontal
+
+// === PANEL DE CONVERSACIONES ===
         modeloConversaciones = new DefaultTableModel();
         modeloConversaciones.setColumnIdentifiers(new String[]{"Nombre"});
-        tablaConversaciones = new JTable(modeloConversaciones){
+        tablaConversaciones = new JTable(modeloConversaciones) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        //evento para cargar mensajes - pasar a request
         tablaConversaciones.getSelectionModel().addListSelectionListener(_ -> cargarMensajes());
 
-        // Mensajes
+        JScrollPane scrollConversaciones = new JScrollPane(tablaConversaciones);
+        JPanel panelConversaciones = new JPanel();
+        panelConversaciones.setLayout(new BorderLayout());
+        panelConversaciones.setBorder(BorderFactory.createTitledBorder("Conversaciones"));
+        panelConversaciones.setPreferredSize(new Dimension(250, 0));
+        panelConversaciones.add(scrollConversaciones, BorderLayout.CENTER);
+
+// === PANEL DE MENSAJES ===
         modeloMensajes = new DefaultTableModel();
         modeloMensajes.setColumnIdentifiers(new String[]{"Remitente", "Mensaje", "Fecha"});
         JTable tablaMensajes = new JTable(modeloMensajes);
         tablaMensajes.setEnabled(false);
 
-        // Entrada de mensaje
-        JPanel panelMensaje = new JPanel(new BorderLayout());
+        JScrollPane scrollMensajes = new JScrollPane(tablaMensajes);
+        JPanel panelMensajes = new JPanel();
+        panelMensajes.setLayout(new BorderLayout());
+        panelMensajes.setBorder(BorderFactory.createTitledBorder("Mensajes"));
+        panelMensajes.add(scrollMensajes, BorderLayout.CENTER);
+
+// === AGREGAR CONVERSACIONES Y MENSAJES A PANEL CENTRAL ===
+        panelCentro.add(panelConversaciones);
+        panelCentro.add(Box.createRigidArea(new Dimension(10, 0))); // Separación entre paneles
+        panelCentro.add(panelMensajes);
+
+// === PANEL INFERIOR: MENSAJE Y BOTÓN ENVIAR ===
+        JPanel panelMensaje = new JPanel();
+        panelMensaje.setLayout(new BoxLayout(panelMensaje, BoxLayout.X_AXIS));
+        panelMensaje.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
         txtMensaje = new JTextField();
         JButton btnEnviar = new JButton("Enviar");
-        panelMensaje.add(txtMensaje, BorderLayout.CENTER);
-        panelMensaje.add(btnEnviar, BorderLayout.EAST);
-        JButton btnNuevoChat = new JButton("Nuevo Chat");
-        //evento para crear chat privado - pasar a request
-        btnNuevoChat.addActionListener(_ -> crearDM());
-
-        JPanel panelDerecho = new JPanel(new BorderLayout());
-        panelDerecho.add(btnNuevoChat, BorderLayout.NORTH);
-        add(panelDerecho, BorderLayout.EAST);
-        //evento ára enviar mensaje - pasar a request
+        panelMensaje.add(txtMensaje);
+        panelMensaje.add(Box.createRigidArea(new Dimension(10, 0)));
+        panelMensaje.add(btnEnviar);
         btnEnviar.addActionListener(_ -> enviarMensaje());
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(tablaConversaciones), new JScrollPane(tablaMensajes));// como en el whats app real!
-        splitPane.setDividerLocation(250);
+// === PANEL DERECHO: NUEVO CHAT Y NUEVO GRUPO ===
+        JPanel panelDerecho = new JPanel();
+        panelDerecho.setLayout(new BoxLayout(panelDerecho, BoxLayout.Y_AXIS));
+        panelDerecho.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panelDerecho.setPreferredSize(new Dimension(150, 0));
 
-        add(splitPane, BorderLayout.CENTER);
-        add(panelMensaje, BorderLayout.SOUTH);
+        JButton btnNuevoChat = new JButton("Nuevo Chat ");
+        btnNuevoChat.setPreferredSize(new Dimension(150, 0));
+        btnNuevoChat.addActionListener(_ -> crearDM());
+        JButton btnNuevoGrupo = new JButton("Nuevo Grupo");
 
+
+        panelDerecho.add(btnNuevoChat);
+        panelDerecho.add(Box.createRigidArea(new Dimension(0, 10)));
+        panelDerecho.add(btnNuevoGrupo);
+
+    // === ENSAMBLADO FINAL ===
+        panelPrincipal.add(panelCentro, BorderLayout.CENTER);
+        panelPrincipal.add(panelMensaje, BorderLayout.SOUTH);
+        panelPrincipal.add(panelDerecho, BorderLayout.EAST);
+
+        add(panelPrincipal);
+        pack();
+
+    // === CERRAR PROGRAMA ===
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                System.out.println("Closing window");
                 RequestClose(loginInfo.getTelefono());
                 System.exit(0);
             }
         });
+
     }
 
     /*Funciones ya del chat*/
@@ -120,7 +159,7 @@ public class GUI extends JFrame {
                         destinatario
                 });
             }
-            //Aqui ya con un else nomas y cargas el nomber del grupo
+            //Aqui ya con un else nomas y cargas el nombre del grupo
         }
 
     }

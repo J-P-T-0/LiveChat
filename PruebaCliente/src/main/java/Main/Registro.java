@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 
 import static Main.Conexion.*;
+import static Main.CreateRequests.RequestClose;
 import static Main.CreateRequests.RequestRegistro;
 
 public class Registro extends JFrame {
@@ -20,7 +21,7 @@ public class Registro extends JFrame {
     public Registro() {
         setTitle("Registro de Usuario");
         setSize(300, 200);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
         initUI();
         frame = this;
@@ -48,6 +49,13 @@ public class Registro extends JFrame {
         panel.add(btnRegistrarse);
 
         add(panel);
+
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                frame.dispose();
+            }
+        });
     }
 
     private boolean validarTelefono(String telefono) {
